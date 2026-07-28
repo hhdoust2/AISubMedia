@@ -428,7 +428,6 @@
         let outputFileName = 'subtitle';
         let translateDownloadUrl = null;
 
-        // مقداردهی اولیه پیش‌فرض در صورت نبود تنظیمات
         if (providers.length === 0) {
             providers = [{
                 id: 'groq',
@@ -440,7 +439,6 @@
             localStorage.setItem('app_providers', JSON.stringify(providers));
         }
 
-        // تغییر تب‌ها
         function switchMainTab(tab) {
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -458,7 +456,6 @@
             document.getElementById('aiEngineOptions').style.display = (engine === 'ai') ? 'block' : 'none';
         }
 
-        // رندر تنظیمات
         function renderAll() {
             const activeKeySelect = document.getElementById('activeKeySelect');
             const aiKeySelect = document.getElementById('aiKeySelect');
@@ -511,7 +508,6 @@
             });
         }
 
-        // ذخیره کلید
         function saveApiKey() {
             const providerId = document.getElementById('keyProviderSelect').value;
             const label = document.getElementById('keyLabelInput').value.trim();
@@ -600,7 +596,7 @@
             reader.readAsText(file);
         }
 
-        // ==================== مدیریت انتخاب فایل صوتی ====================
+        // فایل صوتی
         document.getElementById('audioFileInput').addEventListener('change', function(e) {
             if (e.target.files && e.target.files[0]) {
                 selectedAudioFile = e.target.files[0];
@@ -696,7 +692,7 @@
             a.click();
         }
 
-        // ==================== مدیریت انتخاب فایل SRT ترجمه ====================
+        // فایل SRT
         document.getElementById('srtFileInput').addEventListener('change', function(e) {
             if (e.target.files && e.target.files[0]) {
                 selectedSrtFile = e.target.files[0];
@@ -747,8 +743,14 @@
                 });
 
                 if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.details || errData.error || 'خطا در انجام ترجمه');
+                    let errText = '';
+                    try {
+                        const errData = await response.json();
+                        errText = errData.details || errData.error || 'خطا در ترجمه';
+                    } catch(e) {
+                        errText = await response.text();
+                    }
+                    throw new Error(errText);
                 }
 
                 const blob = await response.blob();
