@@ -1,23 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/translate-srt",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/translate-ai-srt",
-      "dest": "api/index.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+  "rewrites": [
+    { "source": "/translate-srt", "destination": "/api/index.py" },
+    { "source": "/translate-ai-srt", "destination": "/api/index.py" }
   ]
 }
