@@ -1,6 +1,16 @@
 {
   "rewrites": [
-    { "source": "/translate-srt", "destination": "/api/index.py" },
-    { "source": "/translate-ai-srt", "destination": "/api/index.py" }
+    {
+      "source": "/translate-srt",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/transcribe-aac",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

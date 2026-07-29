@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دستیار هوشمند زیرنویس (استخراج و ترجمه)</title>
+    <title>دستیار جامع زیرنویس (AuTotxt & SubStudio)</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -19,11 +19,7 @@
             --text-muted: #94a3b8;
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -44,6 +40,7 @@
             gap: 16px;
         }
 
+        /* تب‌های اصلی بالای صفحه */
         .main-tabs {
             display: flex;
             background-color: #1a2333;
@@ -63,15 +60,14 @@
             background: transparent;
             color: var(--text-muted);
             font-weight: bold;
-            font-size: 13px;
+            font-size: 12px;
             border-radius: 10px;
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-            white-space: nowrap;
+            gap: 4px;
         }
 
         .main-tab-btn.active {
@@ -86,9 +82,7 @@
             gap: 16px;
         }
 
-        .tab-content.active {
-            display: flex;
-        }
+        .tab-content.active { display: flex; }
 
         .card {
             background-color: var(--card-bg);
@@ -108,15 +102,8 @@
             gap: 8px;
         }
 
-        .form-group {
-            margin-bottom: 14px;
-        }
-
-        .form-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
+        .form-group { margin-bottom: 14px; }
+        .form-row { display: flex; gap: 10px; margin-bottom: 12px; }
 
         label {
             display: block;
@@ -125,10 +112,7 @@
             margin-bottom: 6px;
         }
 
-        input[type="text"],
-        input[type="password"],
-        input[type="url"],
-        select {
+        input[type="text"], input[type="password"], input[type="url"], select {
             width: 100%;
             padding: 12px;
             background-color: var(--inner-bg);
@@ -137,17 +121,10 @@
             color: var(--text-main);
             font-size: 13px;
             outline: none;
-            transition: border-color 0.2s;
         }
 
-        input:focus, select:focus {
-            border-color: var(--primary);
-        }
-
-        .ltr-input {
-            direction: ltr;
-            text-align: left;
-        }
+        input:focus, select:focus { border-color: var(--primary); }
+        .ltr-input { direction: ltr; text-align: left; }
 
         .btn {
             width: 100%;
@@ -176,15 +153,13 @@
             border: 1px solid var(--border-color);
             color: var(--text-main);
         }
-        .btn-outline:hover { background-color: var(--inner-bg); }
 
         .custom-file-upload {
             border: 2px dashed var(--border-color);
             border-radius: 12px;
-            padding: 24px;
+            padding: 20px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.2s;
             display: block;
             margin-bottom: 16px;
             color: var(--text-muted);
@@ -212,23 +187,12 @@
             font-size: 12px;
         }
 
-        .list-item-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            word-break: break-all;
-        }
-
-        .list-item-title { font-weight: bold; color: var(--text-main); }
-        .list-item-sub { color: var(--text-muted); font-size: 11px; }
-
         .delete-btn {
             background: none;
             border: none;
             color: var(--danger);
             cursor: pointer;
             font-size: 16px;
-            padding: 4px 8px;
         }
 
         .progress-bar-wrapper {
@@ -250,282 +214,347 @@
             margin-top: 12px;
             text-align: center;
             font-size: 13px;
-            font-weight: 500;
         }
         .status-msg.success { color: var(--accent-green); }
         .status-msg.error { color: var(--danger); }
 
-        #output {
+        .sub-tab-selector {
+            display: flex;
+            background-color: var(--inner-bg);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+        .sub-tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .sub-tab-btn.active { background-color: var(--primary); color: white; }
+
+        #audioOutputText {
+            margin-top: 16px;
+            padding: 12px;
             background-color: var(--inner-bg);
             border: 1px solid var(--border-color);
             border-radius: 10px;
-            padding: 12px;
+            direction: ltr;
+            text-align: left;
             font-family: monospace;
             font-size: 12px;
             max-height: 200px;
             overflow-y: auto;
-            direction: ltr;
-            text-align: left;
-            display: none;
-            margin-top: 12px;
             white-space: pre-wrap;
+            display: none;
+        }
+        .warning-box {
+            display: none;
+            background-color: #450a0a;
+            color: #fca5a5;
+            border: 1px solid #991b1b;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <!-- منوی اصلی -->
+        <!-- تب‌های اصلی -->
         <div class="main-tabs">
-            <button class="main-tab-btn active" onclick="switchMainTab('extract')">🎙️ استخراج صوت</button>
-            <button class="main-tab-btn" onclick="switchMainTab('translate')">🌐 ترجمه زیرنویس</button>
-            <button class="main-tab-btn" onclick="switchMainTab('settings')">⚙️ تنظیمات</button>
+            <button class="main-tab-btn active" onclick="switchMainTab('extract')">
+                🎙️ استخراج زیرنویس (AuTotxt)
+            </button>
+            <button class="main-tab-btn" onclick="switchMainTab('translate')">
+                🌐 ترجمه زیرنویس (SubStudio)
+            </button>
+            <button class="main-tab-btn" onclick="switchMainTab('settings')">
+                ⚙️ تنظیمات عمومی
+            </button>
         </div>
 
-        <div class="tab-content-wrapper">
-            <!-- ==================== تب ۱: استخراج صوت ==================== -->
-            <div id="tab-extract" class="tab-content active">
-                <div class="card">
+        <!-- ==================== تب ۱: استخراج زیرنویس (ساده شده و فقط انتخاب کلید) ==================== -->
+        <div id="tab-extract" class="tab-content active">
+            <div class="card">
+                <div class="card-title">🎙️ تبدیل صوت/ویدیو به زیرنویس SRT</div>
+                
+                <div class="warning-box" id="audioWarningBox">
+                    ⚠️ <b>حجم فایل بیشتر از ۲۵ مگابایت است!</b> لطفاً فایل زیر ۲۵ مگابایت انتخاب کنید.
+                </div>
+
+                <!-- فقط انتخاب کلید (بدون ثبت و حذف) -->
+                <div class="form-group">
+                    <label>🔑 انتخاب کلید API (Groq):</label>
+                    <select id="p1_apiSelect">
+                        <option value="">-- کلیدی یافت نشد! از تب تنظیمات اضافه کنید --</option>
+                    </select>
+                </div>
+
+                <div class="sub-tab-selector">
+                    <button type="button" class="sub-tab-btn active" id="p1_tabUpload">فایل صوتی 📁</button>
+                    <button type="button" class="sub-tab-btn" id="p1_tabLink">لینک مستقیم 🔗</button>
+                </div>
+
+                <form id="p1_audioForm">
+                    <div id="p1_fileWrapper">
+                        <label for="p1_fileInput" class="custom-file-upload" id="p1_fileLabel">
+                            انتخاب فایل صوتی (تا ۲۵ مگابایت) 🎵
+                        </label>
+                        <input type="file" id="p1_fileInput" accept="audio/*" style="display:none;">
+                    </div>
+
+                    <div id="p1_linkWrapper" style="display: none;" class="form-group">
+                        <input type="url" id="p1_urlInput" class="ltr-input" placeholder="https://example.com/audio.mp3">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="p1_submitBtn">استخراج و ساخت SRT 🚀</button>
+
+                    <div id="p1_progressBox" style="display: none; margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
+                            <span id="p1_progressState">در حال پردازش...</span>
+                            <span id="p1_progressPercent">0%</span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar" id="p1_progressBar"></div>
+                        </div>
+                    </div>
+
+                    <button type="button" id="p1_downloadBtn" class="btn btn-green" style="display: none; margin-top: 12px;">دانلود فایل زیرنویس (SRT) 📥</button>
+                </form>
+
+                <div id="audioOutputText"></div>
+            </div>
+        </div>
+
+        <!-- ==================== تب ۲: ترجمه زیرنویس ==================== -->
+        <div id="tab-translate" class="tab-content">
+            <div class="card">
+                <div class="card-title">🌐 ترجمه هوشمند زیرنویس (Deep Translator)</div>
+                
+                <form id="p2_translateForm">
                     <div class="form-group">
-                        <label>🔑 انتخاب کلید API برای Whisper</label>
-                        <select id="activeKeySelect">
-                            <option value="">-- ابتدا کلید API انتخاب کنید --</option>
+                        <label for="p2_fileInput" class="custom-file-upload" id="p2_fileLabel">
+                            انتخاب فایل زیرنویس (SRT) 📄
+                        </label>
+                        <input type="file" id="p2_fileInput" accept=".srt" style="display: none;" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>ترجمه به زبان:</label>
+                        <select id="p2_langTo">
+                            <option value="fa">فارسی (Persian)</option>
+                            <option value="en">انگلیسی (English)</option>
+                            <option value="ar">عربی (Arabic)</option>
+                            <option value="tr">ترکی (Turkish)</option>
+                            <option value="de">آلمانی (German)</option>
+                            <option value="fr">فرانسوی (French)</option>
+                            <option value="es">اسپانیایی (Spanish)</option>
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label for="audioFileInput" class="custom-file-upload" id="audioFileLabel">
-                            📁 جهت انتخاب فایل صوتی اینجا کلیک کنید
-                        </label>
-                        <input type="file" id="audioFileInput" accept="audio/*" style="display: none;">
-                    </div>
+                    <button type="submit" class="btn btn-primary" id="p2_submitBtn">شروع ترجمه و ساخت 🚀</button>
 
-                    <button class="btn btn-primary" id="startExtractBtn" onclick="processAudio()">🚀 استخراج و ساخت SRT</button>
-
-                    <div id="progressBox" style="display: none; margin-top: 16px;">
+                    <div id="p2_progressBox" style="display: none; margin-top: 16px;">
                         <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-                            <span id="progressState">در حال پردازش...</span>
-                            <span id="progressPercent">0%</span>
+                            <span id="p2_progressState">در حال آماده‌سازی فایل...</span>
+                            <span id="p2_progressPercent">0%</span>
                         </div>
                         <div class="progress-bar-wrapper">
-                            <div class="progress-bar" id="progressBar"></div>
+                            <div class="progress-bar" id="p2_progressBar"></div>
                         </div>
                     </div>
 
-                    <button class="btn btn-green" id="downloadBtn" style="display: none; margin-top: 12px;" onclick="downloadSRT()">📥 دانلود فایل زیرنویس (SRT)</button>
-                    <div id="output"></div>
+                    <button type="button" id="p2_downloadBtn" class="btn btn-green" style="display: none; margin-top: 12px;">دانلود فایل زیرنویس ترجمه شده 📥</button>
+                </form>
+
+                <div id="p2_status" class="status-msg"></div>
+            </div>
+        </div>
+
+        <!-- ==================== تب ۳: تنظیمات عمومی (ثبت و مدیریت کامل کلیدها، پرووایدرها و مدل‌ها) ==================== -->
+        <div id="tab-settings" class="tab-content">
+            <div class="card">
+                <div class="card-title">🔑 مدیریت و ثبت کلیدهای API</div>
+                <div class="form-group">
+                    <label>انتخاب پرووایدر</label>
+                    <select id="keyProviderSelect"></select>
                 </div>
+                <div class="form-row">
+                    <div style="flex: 1;">
+                        <input type="text" id="keyLabelInput" placeholder="نام/لیبل کلید">
+                    </div>
+                    <div style="flex: 1.5;">
+                        <input type="password" id="keyValueInput" class="ltr-input" placeholder="sk-... یا gsk_...">
+                    </div>
+                </div>
+                <button class="btn btn-green" onclick="saveApiKey()">➕ ذخیره کلید API</button>
+                <div class="items-list" id="keysListContainer"></div>
             </div>
 
-            <!-- ==================== تب ۲: ترجمه زیرنویس ==================== -->
-            <div id="tab-translate" class="tab-content">
-                <div class="card">
-                    <div class="card-title">🌐 ترجمه هوشمند زیرنویس</div>
-                    
-                    <form id="translateForm">
-                        <div class="form-group">
-                            <label>موتور پردازش ترجمه:</label>
-                            <select id="transEngine" onchange="toggleEngineOptions()">
-                                <option value="google">گوگل ترنسلیت (رایگان و سریع)</option>
-                                <option value="ai">هوش مصنوعی (Groq / OpenAI - با کیفیت فوق‌العاده)</option>
-                            </select>
-                        </div>
-
-                        <div id="aiEngineOptions" class="form-group" style="display: none;">
-                            <label>🔑 انتخاب کلید API برای هوش مصنوعی:</label>
-                            <select id="aiKeySelect">
-                                <option value="">-- کلید مورد نظر را انتخاب کنید --</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="srtFileInput" class="custom-file-upload" id="srtFileLabel">
-                                📄 انتخاب فایل زیرنویس (SRT)
-                            </label>
-                            <input type="file" id="srtFileInput" accept=".srt" style="display: none;" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>ترجمه به زبان مقصد:</label>
-                            <select id="langTo">
-                                <option value="fa">فارسی (Persian)</option>
-                                <option value="en">انگلیسی (English)</option>
-                                <option value="ar">عربی (Arabic)</option>
-                                <option value="tr">ترکی (Turkish)</option>
-                                <option value="de">آلمانی (German)</option>
-                                <option value="fr">فرانسوی (French)</option>
-                            </select>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary" id="btnTranslateSubmit">🚀 شروع عملیات ترجمه</button>
-                    </form>
-
-                    <button type="button" id="btnTransDownload" class="btn btn-green" style="display: none; margin-top: 12px;">📥 دانلود زیرنویس ترجمه شده</button>
-                    <div id="transStatus" class="status-msg"></div>
+            <div class="card">
+                <div class="card-title">⚙️ مدیریت پرووایدرها و مدل‌ها</div>
+                <div class="form-row">
+                    <div style="flex: 1;">
+                        <input type="text" id="providerIdInput" class="ltr-input" placeholder="شناسه (مثلا: groq)">
+                    </div>
+                    <div style="flex: 1.5;">
+                        <input type="text" id="providerNameInput" placeholder="نام نمایشی (مثلا: Groq AI)">
+                    </div>
                 </div>
-            </div>
-
-            <!-- ==================== تب ۳: تنظیمات ==================== -->
-            <div id="tab-settings" class="tab-content">
-                <div class="card">
-                    <div class="card-title">🔑 مدیریت کلیدهای API</div>
-                    <div class="form-group">
-                        <label>انتخاب پرووایدر</label>
-                        <select id="keyProviderSelect"></select>
-                    </div>
-                    <div class="form-row">
-                        <div style="flex: 1;">
-                            <input type="text" id="keyLabelInput" placeholder="نام/لیبل کلید">
-                        </div>
-                        <div style="flex: 1.5;">
-                            <input type="password" id="keyValueInput" class="ltr-input" placeholder="sk-... یا gsk_...">
-                        </div>
-                    </div>
-                    <button class="btn btn-green" onclick="saveApiKey()">➕ ذخیره کلید API</button>
-                    <div class="items-list" id="keysListContainer"></div>
+                <div class="form-group">
+                    <input type="url" id="providerEndpointInput" class="ltr-input" placeholder="آدرس API">
                 </div>
-
-                <div class="card">
-                    <div class="card-title">⚙️ افزودن/ویرایش پرووایدر</div>
-                    <div class="form-row">
-                        <div style="flex: 1;">
-                            <input type="text" id="providerIdInput" class="ltr-input" placeholder="شناسه (مثلاً: groq)">
-                        </div>
-                        <div style="flex: 1.5;">
-                            <input type="text" id="providerNameInput" placeholder="نام نمایشی (مثلاً: Groq AI)">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <input type="url" id="providerEndpointInput" class="ltr-input" placeholder="آدرس API (Endpoint)">
-                    </div>
-                    <div class="form-group">
-                        <input type="text" id="providerModelsInput" class="ltr-input" placeholder="مدل‌ها (مثلاً: llama-3.3-70b-versatile, whisper-large-v3-turbo)">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveProvider()">💾 ذخیره پرووایدر</button>
+                <div class="form-group">
+                    <input type="text" id="providerModelsInput" class="ltr-input" placeholder="مدل‌ها (با ویرگول جدا کنید)">
+                </div>
+                <button class="btn btn-primary" onclick="saveProvider()">💾 ذخیره پرووایدر / مدل‌ها</button>
+                <div style="margin-top: 16px;">
+                    <label>لیست پرووایدرهای ثبت‌شده:</label>
                     <div class="items-list" id="providersListContainer"></div>
                 </div>
+            </div>
 
-                <div class="card">
-                    <div class="card-title">📦 پشتیبان‌گیری</div>
-                    <div class="form-row" style="margin-bottom: 0;">
-                        <button class="btn btn-outline" onclick="exportData()">📥 دانلود بکاپ</button>
-                        <button class="btn btn-outline" onclick="document.getElementById('importFileInput').click()">📤 بازیابی بکاپ</button>
-                        <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="importData(event)">
-                    </div>
+            <div class="card">
+                <div class="card-title">📦 پشتیبان‌گیری و بازیابی اطلاعات</div>
+                <div class="form-row" style="margin-bottom: 0;">
+                    <button class="btn btn-outline" onclick="exportData()">📥 خروجی بکاپ</button>
+                    <button class="btn btn-outline" onclick="document.getElementById('importFileInput').click()">📤 بازیابی بکاپ</button>
+                    <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="importData(event)">
                 </div>
             </div>
         </div>
+
     </div>
 
     <script>
-        // Data State
-        let providers = JSON.parse(localStorage.getItem('app_providers') || '[]');
-        let apiKeys = JSON.parse(localStorage.getItem('app_api_keys') || '[]');
-        
-        let selectedAudioFile = null;
-        let selectedSrtFile = null;
-        let generatedSrt = '';
-        let outputFileName = 'subtitle';
-        let translateDownloadUrl = null;
-
-        if (providers.length === 0) {
-            providers = [{
-                id: 'groq',
-                name: 'Groq AI',
-                endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-                transcribeEndpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
-                models: ['llama-3.3-70b-versatile', 'whisper-large-v3-turbo']
-            }];
-            localStorage.setItem('app_providers', JSON.stringify(providers));
-        }
-
+        // سوئیچ تب‌ها
         function switchMainTab(tab) {
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
             const tabs = ['extract', 'translate', 'settings'];
             const activeIdx = tabs.indexOf(tab);
+            
             if (activeIdx !== -1) {
                 document.querySelectorAll('.main-tab-btn')[activeIdx].classList.add('active');
                 document.getElementById(`tab-${tab}`).classList.add('active');
             }
         }
 
-        function toggleEngineOptions() {
-            const engine = document.getElementById('transEngine').value;
-            document.getElementById('aiEngineOptions').style.display = (engine === 'ai') ? 'block' : 'none';
+        // =========================================================
+        // مدیریت دیتا و تنظیمات (پرووایدرها و کلیدها)
+        // =========================================================
+        let providers = JSON.parse(localStorage.getItem('app_providers') || '[]');
+        let apiKeys = JSON.parse(localStorage.getItem('app_api_keys') || '[]');
+
+        // پیش‌فرض اگر پرووایدر Groq تعریف نشده باشد
+        if (providers.length === 0) {
+            providers = [{
+                id: 'groq',
+                name: 'Groq AI',
+                endpoint: 'https://aud-totxt-reverse.aialsabela.workers.dev/openai/v1/audio/transcriptions',
+                models: ['whisper-large-v3-turbo', 'whisper-large-v3']
+            }];
+            localStorage.setItem('app_providers', JSON.stringify(providers));
         }
 
-        function renderAll() {
-            const activeKeySelect = document.getElementById('activeKeySelect');
-            const aiKeySelect = document.getElementById('aiKeySelect');
-            
-            activeKeySelect.innerHTML = '<option value="">-- کلید مورد نظر را انتخاب کنید --</option>';
-            aiKeySelect.innerHTML = '<option value="">-- کلید مورد نظر را انتخاب کنید --</option>';
-
-            apiKeys.forEach((item, index) => {
-                const prov = providers.find(p => p.id === item.providerId);
-                const provName = prov ? prov.name : item.providerId;
-                const optionText = `${item.label} (${provName})`;
-                
-                activeKeySelect.innerHTML += `<option value="${index}">${optionText}</option>`;
-                aiKeySelect.innerHTML += `<option value="${index}">${optionText}</option>`;
-            });
-
+        function renderSettings() {
+            // آپدیت منوی پرووایدر در تنظیمات
             const keyProviderSelect = document.getElementById('keyProviderSelect');
             keyProviderSelect.innerHTML = '';
             providers.forEach(p => {
                 keyProviderSelect.innerHTML += `<option value="${p.id}">${p.name} (${p.id})</option>`;
             });
 
+            // رندر لیست کلیدها در تنظیمات
             const keysListContainer = document.getElementById('keysListContainer');
             keysListContainer.innerHTML = apiKeys.length === 0 ? '<div style="color:var(--text-muted); font-size:12px; text-align:center;">هیچ کلیدی ثبت نشده است.</div>' : '';
             apiKeys.forEach((item, index) => {
                 const prov = providers.find(p => p.id === item.providerId);
                 keysListContainer.innerHTML += `
                     <div class="list-item">
-                        <div class="list-item-info">
-                            <span class="list-item-title">${item.label} (${prov ? prov.name : item.providerId})</span>
-                            <span class="list-item-sub">${item.key.substring(0, 8)}...</span>
+                        <div>
+                            <b>${item.label}</b> (${prov ? prov.name : item.providerId})<br>
+                            <small style="color:var(--text-muted)">${item.key.substring(0, 10)}...</small>
                         </div>
                         <button class="delete-btn" onclick="deleteApiKey(${index})">🗑️</button>
                     </div>
                 `;
             });
 
+            // رندر لیست پرووایدرها در تنظیمات
             const providersListContainer = document.getElementById('providersListContainer');
-            providersListContainer.innerHTML = providers.length === 0 ? '<div style="color:var(--text-muted); font-size:12px; text-align:center;">هیچ پرووایدر ثبت نشده است.</div>' : '';
+            providersListContainer.innerHTML = providers.length === 0 ? '<div style="color:var(--text-muted); font-size:12px; text-align:center;">هیچ پرووایدی ثبت نشده است.</div>' : '';
             providers.forEach((p, index) => {
                 providersListContainer.innerHTML += `
                     <div class="list-item">
-                        <div class="list-item-info">
-                            <span class="list-item-title">${p.name} (${p.id})</span>
-                            <span class="list-item-sub">${p.models.join(', ')}</span>
+                        <div>
+                            <b>${p.name}</b> (${p.id})<br>
+                            <small style="color:var(--text-muted)">مدل‌ها: ${p.models.join(', ')}</small>
                         </div>
                         <button class="delete-btn" onclick="deleteProvider(${index})">🗑️</button>
                     </div>
                 `;
             });
+
+            // همگام‌سازی منوی کشویی انتخاب کلید در تب استخراج
+            updateExtractTabKeys();
         }
+
+        function updateExtractTabKeys() {
+            const p1Select = document.getElementById('p1_apiSelect');
+            p1Select.innerHTML = '';
+            
+            // دریافت تمام کلیدها (یا کلیدهای پرووایدر Groq)
+            if (apiKeys.length === 0) {
+                p1Select.innerHTML = '<option value="">-- هیچ کلیدی وجود ندارد (از تنظیمات اضافه کنید) --</option>';
+                return;
+            }
+
+            apiKeys.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = item.key;
+                option.textContent = `${item.label} (${item.key.substring(0, 8)}...)`;
+                p1Select.appendChild(option);
+            });
+
+            const lastSelected = localStorage.getItem('last_selected_api_key');
+            if (lastSelected) p1Select.value = lastSelected;
+        }
+
+        document.getElementById('p1_apiSelect').addEventListener('change', function() {
+            localStorage.setItem('last_selected_api_key', this.value);
+        });
 
         function saveApiKey() {
             const providerId = document.getElementById('keyProviderSelect').value;
             const label = document.getElementById('keyLabelInput').value.trim();
             const key = document.getElementById('keyValueInput').value.trim();
-
-            if (!label || !key) return alert('لطفاً تمامی فیلدهای کلید را پر کنید.');
-
+            if (!label || !key) return alert('لطفاً تمامی فیلدها را پر کنید.');
+            
             apiKeys.push({ providerId, label, key });
             localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
+            localStorage.setItem('last_selected_api_key', key);
+            
             document.getElementById('keyLabelInput').value = '';
             document.getElementById('keyValueInput').value = '';
-            renderAll();
+            renderSettings();
+            alert('کلید API با موفقیت ثبت شد.');
         }
 
         function deleteApiKey(index) {
             apiKeys.splice(index, 1);
             localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
-            renderAll();
+            renderSettings();
         }
 
         function saveProvider() {
@@ -533,38 +562,26 @@
             const name = document.getElementById('providerNameInput').value.trim();
             const endpoint = document.getElementById('providerEndpointInput').value.trim();
             const modelsRaw = document.getElementById('providerModelsInput').value.trim();
-
-            if (!id || !name || !endpoint) return alert('مشخصات پرووایدر کامل نیست.');
-
+            if (!id || !name || !endpoint) return alert('لطفا مشخصات پرووایدر را وارد کنید.');
+            
             const models = modelsRaw ? modelsRaw.split(',').map(m => m.trim()) : ['default'];
             const existingIndex = providers.findIndex(p => p.id === id);
-
-            const providerObj = {
-                id,
-                name,
-                endpoint,
-                transcribeEndpoint: 'https://api.groq.com/openai/v1/audio/transcriptions',
-                models
-            };
-
+            
             if (existingIndex >= 0) {
-                providers[existingIndex] = providerObj;
+                providers[existingIndex] = { id, name, endpoint, models };
             } else {
-                providers.push(providerObj);
+                providers.push({ id, name, endpoint, models });
             }
-
+            
             localStorage.setItem('app_providers', JSON.stringify(providers));
-            document.getElementById('providerIdInput').value = '';
-            document.getElementById('providerNameInput').value = '';
-            document.getElementById('providerEndpointInput').value = '';
-            document.getElementById('providerModelsInput').value = '';
-            renderAll();
+            renderSettings();
+            alert('پرووایدر با موفقیت ثبت/ویرایش شد.');
         }
 
         function deleteProvider(index) {
             providers.splice(index, 1);
             localStorage.setItem('app_providers', JSON.stringify(providers));
-            renderAll();
+            renderSettings();
         }
 
         function exportData() {
@@ -572,7 +589,7 @@
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = 'ai_sub_backup.json';
+            a.download = 'backup.json';
             a.click();
         }
 
@@ -587,196 +604,294 @@
                     if (parsed.apiKeys) apiKeys = parsed.apiKeys;
                     localStorage.setItem('app_providers', JSON.stringify(providers));
                     localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
-                    renderAll();
+                    renderSettings();
                     alert('اطلاعات با موفقیت بازیابی شد.');
                 } catch(err) {
-                    alert('فایل فایل بکاپ معتبر نیست.');
+                    alert('فایل وارد شده معتبر نیست.');
                 }
             }
             reader.readAsText(file);
         }
 
-        // فایل صوتی
-        document.getElementById('audioFileInput').addEventListener('change', function(e) {
-            if (e.target.files && e.target.files[0]) {
-                selectedAudioFile = e.target.files[0];
-                document.getElementById('audioFileLabel').textContent = '📄 فایل صوتی: ' + selectedAudioFile.name;
-                document.getElementById('audioFileLabel').style.borderColor = 'var(--accent-green)';
-                
-                const lastDot = selectedAudioFile.name.lastIndexOf('.');
-                outputFileName = lastDot !== -1 ? selectedAudioFile.name.substring(0, lastDot) : selectedAudioFile.name;
-            }
-        });
+        // =========================================================
+        // logic تب استخراج (AuTotxt)
+        // =========================================================
+        (function initProject1() {
+            let currentMode = "upload";
+            let srtContent = "";
+            let outputFileName = "subtitle";
 
-        function formatSRTTime(seconds) {
-            const date = new Date(seconds * 1000);
-            const hh = String(Math.floor(seconds / 3600)).padStart(2, '0');
-            const mm = String(date.getUTCMinutes()).padStart(2, '0');
-            const ss = String(date.getUTCSeconds()).padStart(2, '0');
-            const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
-            return `${hh}:${mm}:${ss},${ms}`;
-        }
+            const tabUpload = document.getElementById('p1_tabUpload');
+            const tabLink = document.getElementById('p1_tabLink');
+            const fileWrapper = document.getElementById('p1_fileWrapper');
+            const linkWrapper = document.getElementById('p1_linkWrapper');
+            const fileInput = document.getElementById('p1_fileInput');
+            const fileLabel = document.getElementById('p1_fileLabel');
+            const urlInput = document.getElementById('p1_urlInput');
+            const submitBtn = document.getElementById('p1_submitBtn');
+            const downloadBtn = document.getElementById('p1_downloadBtn');
+            const warningBox = document.getElementById('audioWarningBox');
+            const progressBox = document.getElementById('p1_progressBox');
+            const progressBar = document.getElementById('p1_progressBar');
+            const progressPercent = document.getElementById('p1_progressPercent');
+            const progressState = document.getElementById('p1_progressState');
+            const outputText = document.getElementById('audioOutputText');
+            const apiSelect = document.getElementById('p1_apiSelect');
 
-        function convertToSRT(segments) {
-            let srtText = "";
-            segments.forEach((seg, i) => {
-                srtText += `${i + 1}\n${formatSRTTime(seg.start)} --> ${formatSRTTime(seg.end)}\n${seg.text.trim()}\n\n`;
+            tabUpload.addEventListener('click', () => {
+                currentMode = "upload";
+                tabUpload.classList.add('active');
+                tabLink.classList.remove('active');
+                fileWrapper.style.display = 'block';
+                linkWrapper.style.display = 'none';
+                warningBox.style.display = 'none';
+                submitBtn.disabled = false;
             });
-            return srtText;
-        }
 
-        async function processAudio() {
-            const keyIndex = document.getElementById('activeKeySelect').value;
-            if (keyIndex === "") return alert('لطفاً ابتدا یک کلید API انتخاب کنید.');
-            if (!selectedAudioFile) return alert('لطفاً یک فایل صوتی انتخاب کنید.');
+            tabLink.addEventListener('click', () => {
+                currentMode = "link";
+                tabLink.classList.add('active');
+                tabUpload.classList.remove('active');
+                fileWrapper.style.display = 'none';
+                linkWrapper.style.display = 'block';
+                warningBox.style.display = 'none';
+                submitBtn.disabled = false;
+            });
 
-            const keyObj = apiKeys[keyIndex];
-            const providerObj = providers.find(p => p.id === keyObj.providerId);
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+                    fileLabel.textContent = `${file.name} (${sizeMb} MB)`;
+                    outputFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
-            const formData = new FormData();
-            formData.append('file', selectedAudioFile);
-            formData.append('model', 'whisper-large-v3-turbo');
-            formData.append('response_format', 'verbose_json');
-
-            document.getElementById('progressBox').style.display = 'block';
-
-            const xhr = new XMLHttpRequest();
-            const endpoint = (providerObj && providerObj.transcribeEndpoint) ? providerObj.transcribeEndpoint : 'https://api.groq.com/openai/v1/audio/transcriptions';
-            
-            xhr.open('POST', endpoint);
-            xhr.setRequestHeader('Authorization', `Bearer ${keyObj.key}`);
-
-            xhr.upload.onprogress = function(e) {
-                if (e.lengthComputable) {
-                    const pct = Math.round((e.loaded / e.total) * 100);
-                    document.getElementById('progressBar').style.width = pct + '%';
-                    document.getElementById('progressPercent').innerText = pct + '%';
-                    document.getElementById('progressState').innerText = pct < 100 ? 'در حال ارسال فایل...' : 'در حال هوش مصنوعی...';
-                }
-            };
-
-            xhr.onload = function() {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data.segments) {
-                            generatedSrt = convertToSRT(data.segments);
-                            document.getElementById('output').style.display = 'block';
-                            document.getElementById('output').innerText = generatedSrt;
-                            document.getElementById('downloadBtn').style.display = 'block';
-                            document.getElementById('progressState').innerText = 'عملیات با موفقیت انجام شد! 🎉';
-                        } else {
-                            alert('پاسخ شامل زمان‌بندی SRT نیست.');
-                        }
-                    } catch(e) {
-                        alert('خطا در پردازش پاسخ سرور.');
+                    if (file.size > 25 * 1024 * 1024) {
+                        warningBox.style.display = 'block';
+                        submitBtn.disabled = true;
+                    } else {
+                        warningBox.style.display = 'none';
+                        submitBtn.disabled = false;
                     }
-                } else {
-                    alert('خطا از API: ' + xhr.responseText);
                 }
-            };
+            });
 
-            xhr.onerror = function() {
-                alert('خطای شبکه. اتصال اینترنت خود را بررسی کنید.');
-            };
-
-            xhr.send(formData);
-        }
-
-        function downloadSRT() {
-            if (!generatedSrt) return;
-            const blob = new Blob([generatedSrt], { type: 'text/plain;charset=utf-8' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${outputFileName}.srt`;
-            a.click();
-        }
-
-        // فایل SRT
-        document.getElementById('srtFileInput').addEventListener('change', function(e) {
-            if (e.target.files && e.target.files[0]) {
-                selectedSrtFile = e.target.files[0];
-                document.getElementById('srtFileLabel').textContent = '📄 فایل زیرنویس: ' + selectedSrtFile.name;
-                document.getElementById('srtFileLabel').style.borderColor = 'var(--accent-green)';
-            }
-        });
-
-        document.getElementById('translateForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            if (!selectedSrtFile) return alert('لطفاً یک فایل زیرنویس (SRT) انتخاب کنید.');
-
-            const engine = document.getElementById('transEngine').value;
-            const langTo = document.getElementById('langTo').value;
-            const formData = new FormData();
-            formData.append('file', selectedSrtFile);
-            formData.append('to', langTo);
-
-            let url = '/translate-srt';
-
-            if (engine === 'ai') {
-                const keyIdx = document.getElementById('aiKeySelect').value;
-                if (keyIdx === "") return alert('لطفاً یک کلید API برای هوش مصنوعی انتخاب کنید.');
-                
-                const keyObj = apiKeys[keyIdx];
-                const provObj = providers.find(p => p.id === keyObj.providerId);
-
-                url = '/translate-ai-srt';
-                formData.append('api_key', keyObj.key);
-                formData.append('endpoint_url', provObj ? provObj.endpoint : 'https://api.groq.com/openai/v1/chat/completions');
-                formData.append('model', provObj ? provObj.models[0] : 'llama-3.3-70b-versatile');
+            function formatSRTTime(seconds) {
+                const date = new Date(seconds * 1000);
+                const hh = String(Math.floor(seconds / 3600)).padStart(2, '0');
+                const mm = String(date.getUTCMinutes()).padStart(2, '0');
+                const ss = String(date.getUTCSeconds()).padStart(2, '0');
+                const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
+                return `${hh}:${mm}:${ss},${ms}`;
             }
 
-            const btnSubmit = document.getElementById('btnTranslateSubmit');
-            const transStatus = document.getElementById('transStatus');
-            const btnDownload = document.getElementById('btnTransDownload');
+            function convertToSRT(segments) {
+                let srt = "";
+                segments.forEach((segment, index) => {
+                    srt += `${index + 1}\n${formatSRTTime(segment.start)} --> ${formatSRTTime(segment.end)}\n${segment.text.trim()}\n\n`;
+                });
+                return srt;
+            }
 
-            btnSubmit.disabled = true;
-            btnDownload.style.display = 'none';
-            transStatus.className = 'status-msg';
-            transStatus.innerText = 'در حال ترجمه فایل زیرنویس... لطفاً شکیبا باشید.';
+            function sendFileToGroq(file, apiKey) {
+                progressBox.style.display = 'block';
+                progressBar.style.width = '0%';
+                progressPercent.innerText = '0%';
+                progressState.innerText = 'در حال ارسال فایل صوتی...';
+                outputText.style.display = 'none';
+                downloadBtn.style.display = 'none';
+                submitBtn.disabled = true;
 
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    body: formData
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('model', 'whisper-large-v3-turbo');
+                formData.append('temperature', '0.0');
+                formData.append('response_format', 'verbose_json');
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', 'https://aud-totxt-reverse.aialsabela.workers.dev/openai/v1/audio/transcriptions');
+                if (apiKey) xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressPercent.innerText = percent + '%';
+                        progressState.innerText = percent < 100 ? 'در حال آپلود...' : 'پردازش هوش مصنوعی...';
+                    }
                 });
 
-                if (!response.ok) {
-                    let errText = '';
-                    try {
-                        const errData = await response.json();
-                        errText = errData.details || errData.error || 'خطا در ترجمه';
-                    } catch(e) {
-                        errText = await response.text();
+                xhr.onload = function() {
+                    submitBtn.disabled = false;
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            if (data.segments) {
+                                srtContent = convertToSRT(data.segments);
+                                outputText.innerText = srtContent;
+                                outputText.style.display = 'block';
+                                progressState.innerText = 'عملیات با موفقیت انجام شد! 🎉';
+                                downloadBtn.style.display = 'block';
+                            } else {
+                                throw new Error("پاسخ فاقد بخش زمان‌بندی است.");
+                            }
+                        } catch (err) {
+                            outputText.innerText = "خطا در پردازش: " + err.message;
+                            outputText.style.display = 'block';
+                        }
+                    } else {
+                        outputText.innerText = "خطا در سرور: " + xhr.statusText;
+                        outputText.style.display = 'block';
                     }
-                    throw new Error(errText);
+                };
+
+                xhr.onerror = function() {
+                    submitBtn.disabled = false;
+                    outputText.innerText = "خطا در ارتباط شبکه.";
+                    outputText.style.display = 'block';
+                };
+
+                xhr.send(formData);
+            }
+
+            document.getElementById('p1_audioForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const apiKey = apiSelect.value;
+                if (!apiKey) {
+                    alert('لطفاً ابتدا یک کلید API از تب «تنظیمات عمومی» اضافه کنید.');
+                    return;
                 }
 
-                const blob = await response.blob();
-                translateDownloadUrl = URL.createObjectURL(blob);
+                if (currentMode === "upload") {
+                    const file = fileInput.files[0];
+                    if (!file || file.size > 25 * 1024 * 1024) return;
+                    sendFileToGroq(file, apiKey);
+                } else {
+                    const url = urlInput.value.trim();
+                    if (!url) return;
+                    progressBox.style.display = 'block';
+                    progressState.innerText = 'در حال دانلود فایل صوتی از لینک...';
+                    try {
+                        const res = await fetch(url);
+                        const blob = await res.blob();
+                        if (blob.size > 25 * 1024 * 1024) {
+                            alert("حجم فایل لینک بیش از ۲۵ مگابایت است.");
+                            return;
+                        }
+                        const file = new File([blob], "audio.mp3", { type: blob.type });
+                        sendFileToGroq(file, apiKey);
+                    } catch (err) {
+                        alert("خطا در دریافت فایل از لینک: " + err.message);
+                    }
+                }
+            });
 
-                transStatus.className = 'status-msg success';
-                transStatus.innerText = 'ترجمه با موفقیت تکمیل شد! 🎉';
-                btnDownload.style.display = 'block';
+            downloadBtn.addEventListener('click', () => {
+                if (!srtContent) return;
+                const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${outputFileName}.srt`;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        })();
 
-            } catch (err) {
-                transStatus.className = 'status-msg error';
-                transStatus.innerText = 'خطا: ' + err.message;
-            } finally {
-                btnSubmit.disabled = false;
-            }
-        });
+        // =========================================================
+        // logic تب ترجمه (SubStudioAI)
+        // =========================================================
+        (function initProject2() {
+            let translateDownloadUrl = null;
+            let translateOutputFileName = "";
 
-        document.getElementById('btnTransDownload').addEventListener('click', function() {
-            if (!translateDownloadUrl) return;
-            const a = document.createElement('a');
-            a.href = translateDownloadUrl;
-            a.download = `translated_${selectedSrtFile ? selectedSrtFile.name : 'sub.srt'}`;
-            a.click();
-        });
+            const fileInput = document.getElementById('p2_fileInput');
+            const fileLabel = document.getElementById('p2_fileLabel');
+            const submitBtn = document.getElementById('p2_submitBtn');
+            const downloadBtn = document.getElementById('p2_downloadBtn');
+            const statusMsg = document.getElementById('p2_status');
+            const progressBox = document.getElementById('p2_progressBox');
+            const progressBar = document.getElementById('p2_progressBar');
+            const progressPercent = document.getElementById('p2_progressPercent');
+            const progressState = document.getElementById('p2_progressState');
 
-        renderAll();
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    fileLabel.textContent = this.files[0].name;
+                    fileLabel.style.borderColor = 'var(--accent-green)';
+                }
+            });
+
+            document.getElementById('p2_translateForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                if (!fileInput.files.length) return;
+                const file = fileInput.files[0];
+                translateOutputFileName = file.name.replace(/\.[^/.]+$/, "");
+                const langTo = document.getElementById('p2_langTo').value;
+
+                downloadBtn.style.display = 'none';
+                if (translateDownloadUrl) {
+                    window.URL.revokeObjectURL(translateDownloadUrl);
+                    translateDownloadUrl = null;
+                }
+
+                submitBtn.disabled = true;
+                statusMsg.className = 'status-msg';
+                statusMsg.innerText = '';
+                progressBox.style.display = 'block';
+                progressBar.style.width = '20%';
+                progressPercent.innerText = '20%';
+                progressState.innerText = 'در حال ترجمه دیالوگ‌ها...';
+
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('to', langTo);
+
+                try {
+                    const response = await fetch('/translate-srt', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.details || 'خطا در ترجمه فایل');
+                    }
+
+                    progressBar.style.width = '100%';
+                    progressPercent.innerText = '100%';
+                    progressState.innerText = 'ترجمه با موفقیت انجام شد! 🎉';
+
+                    const blob = await response.blob();
+                    translateDownloadUrl = window.URL.createObjectURL(blob);
+                    statusMsg.className = 'status-msg success';
+                    downloadBtn.style.display = 'block';
+
+                } catch (error) {
+                    progressBar.style.width = '0%';
+                    progressPercent.innerText = '0%';
+                    statusMsg.className = 'status-msg error';
+                    statusMsg.innerText = 'خطا: ' + error.message;
+                    progressState.innerText = 'خطا در عملیات ❌';
+                } finally {
+                    submitBtn.disabled = false;
+                }
+            });
+
+            downloadBtn.addEventListener('click', function() {
+                if (!translateDownloadUrl) return;
+                const langTo = document.getElementById('p2_langTo').value;
+                const a = document.createElement('a');
+                a.href = translateDownloadUrl;
+                a.download = `${translateOutputFileName}_${langTo}.srt`;
+                a.click();
+                this.style.display = 'none';
+                progressBox.style.display = 'none';
+                statusMsg.innerText = 'فایل دانلود شد.';
+            });
+        })();
+
+        // اجرای اولیه تنظیمات
+        renderSettings();
     </script>
 </body>
 </html>
