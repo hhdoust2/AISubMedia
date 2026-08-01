@@ -14,40 +14,95 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
     }
 }
 
+const PERSIAN_CHARS_RE = /[\u0600-\u06FF]/;
+
+// آیا این خط از قبل فارسی است؟ (خط‌هایی که هوش مصنوعی قبلاً موفق ترجمه کرده)
+function looksAlreadyPersian(text) {
+    return !!text && PERSIAN_CHARS_RE.test(text);
+}
+
 // تابع ارتباط با سرور گوگل در پس‌زمینه — ارسال به بک‌اند در قالب دسته‌های
 // ۴۰ تایی برای جلوگیری از Timeout.
+//
+// نکته مهم (باگ واقعی که این نسخه رفع می‌کند): وقتی یک دسته را با هم به یک
+// متن می‌چسبانیم و با source="auto" می‌فرستیم، گوگل زبان کل بلوک را یک‌جا
+// تشخیص می‌دهد، نه خط‌به‌خط. برای فایل‌هایی که بخشی از آن‌ها قبلاً (مثلاً با
+// هوش مصنوعی) به فارسی ترجمه شده و فقط چند خط ناموفق به زبان اصلی مانده،
+// اگر آن چند خط را کنار خط‌های فارسی در یک دسته بفرستیم، زبان غالبِ دسته
+// «فارسی» تشخیص داده می‌شود و گوگل چون source=fa و target=fa یکسان است هیچ
+// کاری نمی‌کند و متن را دقیقاً بدون تغییر برمی‌گرداند — بدون هیچ خطایی، پس
+// به نظر می‌رسد "ترجمه هیچ اثری نداشته". راه‌حل: فقط خط‌هایی که از قبل فارسی
+// نیستند را می‌فرستیم؛ خط‌های فارسی دست‌نخورده باقی می‌مانند.
 export async function translateSegmentsWithGoogle(segments, els) {
     setProgress(els, 0, 'در حال ترجمه با گوگل در پس‌زمینه...');
     const texts = segments.map((s) => s.text);
 
+    const indicesToTranslate = texts
+        .map((t, i) => i)
+        .filter((i) => texts[i] && texts[i].trim() && !looksAlreadyPersian(texts[i]));
+
+    const finalTexts = [...texts];
+
+    if (indicesToTranslate.length === 0) {
+        setProgress(els, 100, 'همه‌ی خط‌ها از قبل فارسی هستند — نیازی به ترجمه نبود.');
+        return { segments: segments.map((seg, i) => ({ ...seg, text: finalTexts[i] })), failedChunks: 0, totalChunks: 0 };
+    }
+
     const chunkSize = 40;
-    let translatedTexts = [];
+    let failedChunks = 0;
+    let totalChunks = 0;
 
-    for (let i = 0; i < texts.length; i += chunkSize) {
-        const chunk = texts.slice(i, i + chunkSize);
-        const percent = Math.round(((i + chunk.length) / texts.length) * 100);
+    for (let i = 0; i < indicesToTranslate.length; i += chunkSize) {
+        const idxChunk = indicesToTranslate.slice(i, i + chunkSize);
+        const chunk = idxChunk.map((idx) => texts[idx]);
+        totalChunks++;
+        const percent = Math.round(((i + idxChunk.length) / indicesToTranslate.length) * 100);
 
-        try {
+        const attemptOnce = async () => {
             const res = await fetchWithTimeout('/translate-google', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ texts: chunk }),
             }, 25000);
-
             if (!res.ok) throw new Error('خطای ارتباط با سرور گوگل');
-            const data = await res.json();
-            translatedTexts = translatedTexts.concat(data.translated_texts);
+            return res.json();
+        };
+
+        try {
+            let data = await attemptOnce();
+            // اگر گوگل/MyMemory هر دو در سرور شکست خوردند، احتمال اینکه فقط
+            // یک بلاک/محدودیت نرخ لحظه‌ای بوده باشد وجود دارد؛ یک بار دیگر
+            // با کمی تأخیر امتحان می‌کنیم قبل از اینکه دسته را ناموفق بشماریم.
+            if (data.engine === 'none') {
+                await sleep(1500);
+                data = await attemptOnce();
+            }
+            if (data.engine === 'none') {
+                failedChunks++;
+            }
+            idxChunk.forEach((idx, j) => {
+                finalTexts[idx] = data.translated_texts[j] ?? texts[idx];
+            });
         } catch (e) {
             console.error(e);
-            // در صورت بروز مشکل، خود متن اصلی جایگزین می‌شود تا کل عملیات fail نشود
-            translatedTexts = translatedTexts.concat(chunk);
+            // در صورت بروز مشکل، متن اصلی همان خط‌ها بدون تغییر باقی می‌ماند
+            failedChunks++;
         }
 
         setProgress(els, percent);
     }
 
-    return segments.map((seg, i) => ({ ...seg, text: translatedTexts[i] || seg.text }));
+    const translatedSegments = segments.map((seg, i) => ({ ...seg, text: finalTexts[i] }));
+    setProgress(
+        els,
+        undefined,
+        failedChunks > 0
+            ? `تکمیل شد، اما ⚠️ ${failedChunks} از ${totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل/MyMemory در دسترس نبود؛ متن اصلی باقی ماند).`
+            : 'ترجمه با گوگل با موفقیت انجام شد! 🎉'
+    );
+    return { segments: translatedSegments, failedChunks, totalChunks };
 }
+
 
 export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, options = {}) {
     // ترجمه هوشمند از طریق بک‌اند خودمان انجام می‌شود (نه مستقیم مرورگر به
@@ -78,7 +133,18 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
     const maxRetries = isFreeModel ? 5 : 3;
 
+    // وقتی یک worker به rate-limit (429) می‌خورد، بقیه worker های موازی هم باید
+    // منتظر بمانند؛ وگرنه همه هم‌زمان دوباره درخواست می‌زنند و دوباره 429
+    // می‌گیرند. این یک cooldown مشترک بین همه‌ی worker های همین عملیات است.
+    let sharedCooldownUntil = 0;
+    async function respectSharedCooldown() {
+        const remaining = sharedCooldownUntil - Date.now();
+        if (remaining > 0) await sleep(remaining);
+    }
+
     async function translateOneBatch(batchTexts, attempt = 0) {
+        await respectSharedCooldown();
+
         const res = await fetchWithTimeout('/translate-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -100,12 +166,32 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         }
 
         const retryableStatuses = ['rate_limited', 'server_error', 'parse_error'];
-        if (data.success !== true && retryableStatuses.includes(data.status) && attempt < maxRetries) {
-            const waitMs = data.retry_after
-                ? Math.round(data.retry_after * 1000)
-                : Math.min(1200 * Math.pow(1.8, attempt), 15000);
-            await sleep(waitMs);
-            return translateOneBatch(batchTexts, attempt + 1);
+        if (data.success !== true && retryableStatuses.includes(data.status)) {
+            if (data.status === 'rate_limited') {
+                const cooldownMs = data.retry_after ? Math.round(data.retry_after * 1000) : 5000;
+                sharedCooldownUntil = Math.max(sharedCooldownUntil, Date.now() + cooldownMs);
+            }
+
+            if (attempt < maxRetries) {
+                const waitMs = data.retry_after
+                    ? Math.round(data.retry_after * 1000)
+                    : Math.min(1200 * Math.pow(1.8, attempt), 15000);
+                await sleep(waitMs);
+                return translateOneBatch(batchTexts, attempt + 1);
+            }
+
+            // همه‌ی تلاش‌ها با همین اندازه دسته تمام شد. اغلب دلیل شکست
+            // (پاسخ مدل که وسط راه قطع شده، یا محدودیت نرخ لحظه‌ای) با یک
+            // دسته کوچک‌تر برطرف می‌شود؛ به‌جای تسلیم‌شدن روی کل دسته، آن را
+            // نصف می‌کنیم و هر نیمه را از صفر امتحان می‌کنیم.
+            if (batchTexts.length > 1) {
+                const mid = Math.ceil(batchTexts.length / 2);
+                const [left, right] = await Promise.all([
+                    translateOneBatch(batchTexts.slice(0, mid), 0),
+                    translateOneBatch(batchTexts.slice(mid), 0),
+                ]);
+                return { texts: [...left.texts, ...right.texts], ok: left.ok && right.ok };
+            }
         }
 
         if (!Array.isArray(data.translated_texts) || data.translated_texts.length !== batchTexts.length) {

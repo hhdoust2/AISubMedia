@@ -403,9 +403,12 @@ export function initApp() {
                 if (blocks.length === 0) throw new Error('فایل SRT معتبر نیست یا خالی است.');
 
                 const fakeSegments = blocks.map((b) => ({ text: b.text }));
-                const translatedSegments = await translateSegmentsWithGoogle(fakeSegments, srtEls);
-                const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: translatedSegments[i].text }));
+                const gResult = await translateSegmentsWithGoogle(fakeSegments, srtEls);
+                const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text }));
                 translatedSrt = buildSrtFromBlocks(translatedBlocks);
+                if (gResult.failedChunks > 0) {
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
+                }
             } else {
                 const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls);
                 translatedSrt = trResult.text;

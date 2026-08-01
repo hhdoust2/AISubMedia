@@ -94,8 +94,11 @@ export function processAudioFile(file, ctx) {
 
             let srt;
             if (isGoogleTranslate) {
-                const translatedSegments = await translateSegmentsWithGoogle(data.segments, { state: progressState, bar: progressBar, percent: progressPercent });
-                srt = convertSegmentsToSRT(translatedSegments);
+                const gResult = await translateSegmentsWithGoogle(data.segments, { state: progressState, bar: progressBar, percent: progressPercent });
+                srt = convertSegmentsToSRT(gResult.segments);
+                if (gResult.failedChunks > 0) {
+                    translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
+                }
             } else {
                 srt = convertSegmentsToSRT(data.segments);
                 if (isTranslate) {
