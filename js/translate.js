@@ -109,14 +109,8 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // پروایدر) تا مشکل CORS نداشته باشیم. فایل را یک‌جا به سرور نمی‌فرستیم؛
     // به دسته‌های کوچک تقسیم و هر دسته را جدا می‌فرستیم، وگرنه از سقف زمان
     // اجرای توابع سرورلس رد می‌شویم.
-    // نکته مهم: بیشتر محدودیت‌های پروایدرهای رایگان روی «تعداد درخواست در
-    // دقیقه» است، نه حجم هر درخواست. پس دسته‌ی کوچیک‌تر باعث می‌شود درخواست
-    // بیشتری لازم باشد و زودتر به سقف نرخ بخوریم — دقیقاً برعکس چیزی که
-    // می‌خواهیم. چون حالا truncation/parse ناقص هم با max_tokens و بازیابی
-    // نرم (لنیِنت) در بک‌اند مدیریت می‌شود، دیگر نیازی به دسته‌ی خیلی کوچیک
-    // برای مدل‌های رایگان نیست.
     const isFreeModel = /:free\b/i.test(model || '');
-    const batchSize = options.batchSize || 25;
+    const batchSize = options.batchSize || (isFreeModel ? 15 : 25);
     const concurrency = options.concurrency || (isFreeModel ? 1 : 3);
 
     const blocks = parseSrtBlocks(srtText);
@@ -137,23 +131,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
     setProgress(els, 0, `در حال ترجمه ${batches.length} دسته با هوش مصنوعی${isFreeModel ? ' (مدل رایگان — محتاطانه‌تر)' : ''}...`);
 
-    // با batchSize بزرگ‌تر (اصلاح بالا)، تعداد کل دسته‌ها کمتر شده؛ نیازی
-    // به تعداد retry بالا نیست — هر retry اضافه یعنی چند ثانیه انتظار بیشتر
-    // که روی کل زمان فایل جمع می‌شود.
-    const maxRetries = 3;
+    const maxRetries = isFreeModel ? 5 : 3;
 
-    // وقتی یک worker به rate-limit (429) می‌خورد، بقیه worker های موازی هم باید
-    // منتظر بمانند؛ وگرنه همه هم‌زمان دوباره درخواست می‌زنند و دوباره 429
-    // می‌گیرند. این یک cooldown مشترک بین همه‌ی worker های همین عملیات است.
-    let sharedCooldownUntil = 0;
-    async function respectSharedCooldown() {
-        const remaining = sharedCooldownUntil - Date.now();
-        if (remaining > 0) await sleep(remaining);
-    }
-
-    async function translateOneBatch(batchTexts, attempt = 0, allowSplit = true) {
-        await respectSharedCooldown();
-
+    async function translateOneBatch(batchTexts, attempt = 0) {
         const res = await fetchWithTimeout('/translate-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -175,40 +155,12 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         }
 
         const retryableStatuses = ['rate_limited', 'server_error', 'parse_error'];
-        if (data.success !== true && retryableStatuses.includes(data.status)) {
-            if (data.status === 'rate_limited') {
-                // اگر پروایدر Retry-After نداده، حدس محتاطانه‌ای می‌زنیم؛ نه
-                // خیلی کوتاه (که دوباره فوری 429 بگیریم) نه خیلی بلند (که کل
-                // فایل معطل بماند).
-                const cooldownMs = data.retry_after ? Math.round(data.retry_after * 1000) : 8000;
-                sharedCooldownUntil = Math.max(sharedCooldownUntil, Date.now() + cooldownMs);
-            }
-
-            if (attempt < maxRetries) {
-                const waitMs = data.retry_after
-                    ? Math.round(data.retry_after * 1000)
-                    : Math.min(1000 * Math.pow(1.6, attempt), 8000);
-                await sleep(waitMs);
-                return translateOneBatch(batchTexts, attempt + 1, allowSplit);
-            }
-
-            // نصف‌کردن دسته فقط برای parse_error معنی دارد (پاسخ مدل وسط راه
-            // قطع شده — با دسته‌ی کوچک‌تر معمولاً حل می‌شود). برای
-            // rate_limited/server_error نصف‌کردن هیچ کمکی نمی‌کند — چون
-            // محدودیت روی «تعداد درخواست در دقیقه» است، نه اندازه‌ی هر
-            // درخواست؛ نصف‌کردن فقط تعداد درخواست‌ها را زیاد می‌کند و باعث
-            // rate-limit بیشتر می‌شود (دقیقاً چیزی که قبلاً باعث سیل درخواست،
-            // کندی شدید و افت درصد موفقیت شد). به همین دلیل هم فقط روی
-            // parse_error split می‌کنیم، و هم فقط یک سطح (allowSplit=false
-            // برای نیمه‌ها) تا رشد نمایی درخواست رخ ندهد.
-            if (allowSplit && data.status === 'parse_error' && batchTexts.length > 1) {
-                const mid = Math.ceil(batchTexts.length / 2);
-                const [left, right] = await Promise.all([
-                    translateOneBatch(batchTexts.slice(0, mid), 0, false),
-                    translateOneBatch(batchTexts.slice(mid), 0, false),
-                ]);
-                return { texts: [...left.texts, ...right.texts], ok: left.ok && right.ok };
-            }
+        if (data.success !== true && retryableStatuses.includes(data.status) && attempt < maxRetries) {
+            const waitMs = data.retry_after
+                ? Math.round(data.retry_after * 1000)
+                : Math.min(1200 * Math.pow(1.8, attempt), 15000);
+            await sleep(waitMs);
+            return translateOneBatch(batchTexts, attempt + 1);
         }
 
         if (!Array.isArray(data.translated_texts) || data.translated_texts.length !== batchTexts.length) {
