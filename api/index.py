@@ -432,7 +432,7 @@ def _parse_json_object(raw_text):
     raise ValueError("پاسخ مدل یک JSON معتبر نبود.")
 
 
-def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, timeout=25):
+def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, timeout=45):
     """
     فقط یک درخواست واقعی به پروایدر می‌زند و هیچ time.sleep/retry داخلی ندارد
     (به‌جز یک fallback فوری بدون response_format، که یک درخواست HTTP اضافه است
