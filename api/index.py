@@ -415,11 +415,36 @@ def _extract_message_text(message):
     return (content or "").strip()
 
 
+_KV_PAIR_RE = re.compile(r'"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def _lenient_extract_pairs(text):
+    """
+    وقتی پاسخ مدل به‌خاطر محدودیت max_tokens یا خطای فرمت وسط راه قطع/خراب شده
+    و JSON کامل و معتبر نیست، به‌جای انداختن کل دسته، هر جفت "کلید": "مقدار"ی
+    که سالم است را با regex استخراج می‌کنیم. نتیجه این است که خطوطی که مدل قبل
+    از قطع‌شدن موفق به ترجمه‌شان شده ذخیره می‌شوند و فقط باقی خطوط (که اصلاً
+    ترجمه نشدند) به متن اصلی برمی‌گردند — نه کل دسته.
+    """
+    result = {}
+    for m in _KV_PAIR_RE.finditer(text):
+        key, raw_val = m.group(1), m.group(2)
+        try:
+            val = json.loads(f'"{raw_val}"')
+        except json.JSONDecodeError:
+            val = raw_val
+        result[key] = val
+    return result
+
+
 def _parse_json_object(raw_text):
     """
     بعضی مدل‌ها با وجود دستور صریح در پرامپت، JSON را داخل ```json ... ``` می‌فرستند
     یا قبل/بعدش یک جمله توضیحی اضافه می‌کنند. اول fence مارک‌داون را پاک می‌کنیم،
     اگر باز هم parse نشد، اولین بلوک {...} کامل متن را با regex استخراج می‌کنیم.
+    اگر آن هم شکست خورد (معمولاً یعنی پاسخ وسط راه قطع شده)، به‌جای شکست کامل
+    دسته، هر جفت کلید-مقدار سالم را جداگانه نجات می‌دهیم (نگاه کنید به
+    _lenient_extract_pairs).
     """
     text = re.sub(r"^```(?:json)?\s*|\s*```\s*$", "", raw_text.strip(), flags=re.IGNORECASE).strip()
     try:
@@ -428,7 +453,13 @@ def _parse_json_object(raw_text):
         pass
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
-        return json.loads(match.group(0))
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+    partial = _lenient_extract_pairs(text)
+    if partial:
+        return partial
     raise ValueError("پاسخ مدل یک JSON معتبر نبود.")
 
 
@@ -453,10 +484,16 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, t
         return list(texts), "ok", None
 
     prompt = _AI_TRANSLATE_PROMPT_TEMPLATE.format(payload=json.dumps(non_empty, ensure_ascii=False))
+    # نکته مهم: بدون max_tokens صریح، بسیاری از پروایدرها از سقف پیش‌فرض کوتاهی
+    # استفاده می‌کنند و پاسخ JSON وسط راه قطع می‌شود (باعث parse_error که در
+    # عمل به‌صورت "شکست‌خوردن دسته" دیده می‌شود، حتی وقتی بیشتر خطوط ترجمه شده
+    # بودند). سقفی سخاوتمندانه و متناسب با تعداد خطوط دسته تعیین می‌کنیم.
+    max_tokens = min(4096, max(800, len(non_empty) * 140))
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
+        "max_tokens": max_tokens,
     }
     if use_json_mode:
         payload["response_format"] = {"type": "json_object"}
