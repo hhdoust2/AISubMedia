@@ -3,895 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دستیار جامع زیرنویس (AuTotxt & SubStudio)</title>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --inner-bg: #0f172a;
-            --border-color: #334155;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --accent-green: #10b981;
-            --accent-green-hover: #059669;
-            --danger: #ef4444;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-            padding: 20px 10px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 520px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        /* تب‌های اصلی بالای صفحه */
-        .main-tabs {
-            display: flex;
-            background-color: #1a2333;
-            padding: 6px;
-            border-radius: 14px;
-            border: 1px solid var(--border-color);
-            gap: 6px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .main-tab-btn {
-            flex: 1;
-            padding: 10px 6px;
-            border: none;
-            background: transparent;
-            color: var(--text-muted);
-            font-weight: bold;
-            font-size: 12px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-        }
-
-        .main-tab-btn.active {
-            background-color: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
-
-        .tab-content {
-            display: none;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .tab-content.active { display: flex; }
-
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 16px;
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        .card-title {
-            font-size: 15px;
-            font-weight: bold;
-            color: var(--text-main);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-group { margin-bottom: 14px; }
-        .form-row { display: flex; gap: 10px; margin-bottom: 12px; }
-
-        label {
-            display: block;
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-        }
-
-        input[type="text"], input[type="password"], input[type="url"], select {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--inner-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            color: var(--text-main);
-            font-size: 13px;
-            outline: none;
-        }
-
-        input:focus, select:focus { border-color: var(--primary); }
-        .ltr-input { direction: ltr; text-align: left; }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .btn-primary { background-color: var(--primary); color: white; }
-        .btn-primary:hover { background-color: var(--primary-hover); }
-        .btn-primary:disabled { background-color: var(--border-color); cursor: not-allowed; }
-
-        .btn-green { background-color: var(--accent-green); color: white; }
-        .btn-green:hover { background-color: var(--accent-green-hover); }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-        }
-
-        .custom-file-upload {
-            border: 2px dashed var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            display: block;
-            margin-bottom: 16px;
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        .custom-file-upload:hover { border-color: var(--primary); color: var(--text-main); }
-
-        .items-list {
-            margin-top: 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-height: 180px;
-            overflow-y: auto;
-        }
-
-        .list-item {
-            background-color: var(--inner-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 10px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-        }
-
-        .delete-btn {
-            background: none;
-            border: none;
-            color: var(--danger);
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .progress-bar-wrapper {
-            background-color: var(--inner-bg);
-            height: 10px;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-
-        .progress-bar {
-            background-color: var(--primary);
-            height: 100%;
-            width: 0%;
-            transition: width 0.2s;
-        }
-
-        .status-msg {
-            margin-top: 12px;
-            text-align: center;
-            font-size: 13px;
-        }
-        .status-msg.success { color: var(--accent-green); }
-        .status-msg.error { color: var(--danger); }
-
-        .sub-tab-selector {
-            display: flex;
-            background-color: var(--inner-bg);
-            padding: 4px;
-            border-radius: 10px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border-color);
-        }
-        .sub-tab-btn {
-            flex: 1;
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            padding: 8px;
-            cursor: pointer;
-            border-radius: 8px;
-            font-weight: bold;
-            font-size: 12px;
-        }
-        .sub-tab-btn.active { background-color: var(--primary); color: white; }
-
-        #audioOutputText {
-            margin-top: 16px;
-            padding: 12px;
-            background-color: var(--inner-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            direction: ltr;
-            text-align: left;
-            font-family: monospace;
-            font-size: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            display: none;
-        }
-        .warning-box {
-            display: none;
-            background-color: #450a0a;
-            color: #fca5a5;
-            border: 1px solid #991b1b;
-            padding: 10px;
-            border-radius: 10px;
-            margin-bottom: 12px;
-            font-size: 12px;
-        }
-    </style>
+    <title>مدیریت صوت و ترجمه فیلم 🎙️🤖</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <div class="container">
-        <!-- تب‌های اصلی -->
-        <div class="main-tabs">
-            <button class="main-tab-btn active" onclick="switchMainTab('extract')">
-                🎙️ استخراج زیرنویس (AuTotxt)
-            </button>
-            <button class="main-tab-btn" onclick="switchMainTab('translate')">
-                🌐 ترجمه زیرنویس (SubStudio)
-            </button>
-            <button class="main-tab-btn" onclick="switchMainTab('settings')">
-                ⚙️ تنظیمات عمومی
-            </button>
-        </div>
-
-        <!-- ==================== تب ۱: استخراج زیرنویس (ساده شده و فقط انتخاب کلید) ==================== -->
-        <div id="tab-extract" class="tab-content active">
-            <div class="card">
-                <div class="card-title">🎙️ تبدیل صوت/ویدیو به زیرنویس SRT</div>
-                
-                <div class="warning-box" id="audioWarningBox">
-                    ⚠️ <b>حجم فایل بیشتر از ۲۵ مگابایت است!</b> لطفاً فایل زیر ۲۵ مگابایت انتخاب کنید.
-                </div>
-
-                <!-- فقط انتخاب کلید (بدون ثبت و حذف) -->
-                <div class="form-group">
-                    <label>🔑 انتخاب کلید API (Groq):</label>
-                    <select id="p1_apiSelect">
-                        <option value="">-- کلیدی یافت نشد! از تب تنظیمات اضافه کنید --</option>
-                    </select>
-                </div>
-
-                <div class="sub-tab-selector">
-                    <button type="button" class="sub-tab-btn active" id="p1_tabUpload">فایل صوتی 📁</button>
-                    <button type="button" class="sub-tab-btn" id="p1_tabLink">لینک مستقیم 🔗</button>
-                </div>
-
-                <form id="p1_audioForm">
-                    <div id="p1_fileWrapper">
-                        <label for="p1_fileInput" class="custom-file-upload" id="p1_fileLabel">
-                            انتخاب فایل صوتی (تا ۲۵ مگابایت) 🎵
-                        </label>
-                        <input type="file" id="p1_fileInput" accept="audio/*" style="display:none;">
-                    </div>
-
-                    <div id="p1_linkWrapper" style="display: none;" class="form-group">
-                        <input type="url" id="p1_urlInput" class="ltr-input" placeholder="https://example.com/audio.mp3">
-                    </div>
-
-                    <button type="submit" class="btn btn-primary" id="p1_submitBtn">استخراج و ساخت SRT 🚀</button>
-
-                    <div id="p1_progressBox" style="display: none; margin-top: 16px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-                            <span id="p1_progressState">در حال پردازش...</span>
-                            <span id="p1_progressPercent">0%</span>
-                        </div>
-                        <div class="progress-bar-wrapper">
-                            <div class="progress-bar" id="p1_progressBar"></div>
-                        </div>
-                    </div>
-
-                    <button type="button" id="p1_downloadBtn" class="btn btn-green" style="display: none; margin-top: 12px;">دانلود فایل زیرنویس (SRT) 📥</button>
-                </form>
-
-                <div id="audioOutputText"></div>
+    <div class="card">
+        <div class="card-header">
+            <h2>مدیریت صوت و هوش مصنوعی 🎙️🤖</h2>
+            <div class="main-tabs">
+                <button type="button" class="main-tab-btn active" id="mainTabProcess">پردازش صوت 🎙️</button>
+                <button type="button" class="main-tab-btn" id="mainTabTranslate">ترجمه 🌐</button>
+                <button type="button" class="main-tab-btn" id="mainTabSettings">تنظیمات ⚙️</button>
             </div>
         </div>
 
-        <!-- ==================== تب ۲: ترجمه زیرنویس ==================== -->
-        <div id="tab-translate" class="tab-content">
-            <div class="card">
-                <div class="card-title">🌐 ترجمه هوشمند زیرنویس (Deep Translator)</div>
-                
-                <form id="p2_translateForm">
-                    <div class="form-group">
-                        <label for="p2_fileInput" class="custom-file-upload" id="p2_fileLabel">
-                            انتخاب فایل زیرنویس (SRT) 📄
-                        </label>
-                        <input type="file" id="p2_fileInput" accept=".srt" style="display: none;" required>
+        <div class="scrollable-content">
+            <!-- تب ۱: پردازش صوت -->
+            <div id="tabContentProcess" class="tab-content active">
+                <div class="warning-box" id="warningBox">
+                    ⚠️ <b>حجم فایل صوتی بیش از ۲۵ مگابایت است!</b><br>
+                    لطفاً فایل زیر ۲۵ مگابایت بارگذاری کنید.
+                </div>
+
+                <div class="section-box">
+                    <span class="section-title" style="color: #34d399;">🎙️ بخش تبدیل صوت (Whisper)</span>
+                    <div style="margin-bottom: 8px;">
+                        <label for="assignWhisperSelect" style="display:block; font-size:11px; color:#d1d5db; margin-bottom:3px;">انتخاب پروایدر صوت:</label>
+                        <select id="assignWhisperSelect"><option value="">-- انتخاب پروایدر --</option></select>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label for="keyWhisperSelect" style="display:block; font-size:11px; color:#fcd34d; margin-bottom:3px;">🔑 انتخاب کلید API صوت:</label>
+                        <select id="keyWhisperSelect"><option value="">-- انتخاب کلید --</option></select>
                     </div>
 
-                    <div class="form-group">
-                        <label>ترجمه به زبان:</label>
-                        <select id="p2_langTo">
-                            <option value="fa">فارسی (Persian)</option>
-                            <option value="en">انگلیسی (English)</option>
-                            <option value="ar">عربی (Arabic)</option>
-                            <option value="tr">ترکی (Turkish)</option>
-                            <option value="de">آلمانی (German)</option>
-                            <option value="fr">فرانسوی (French)</option>
-                            <option value="es">اسپانیایی (Spanish)</option>
+                    <hr style="border: 0; border-top: 1px solid #374151; margin: 12px 0;">
+
+                    <span class="section-title" style="color: #818cf8;">🌐 بخش ترجمه با مدل هوش مصنوعی</span>
+                    <div style="margin-bottom: 8px;">
+                        <label for="assignTranslateSelect" style="display:block; font-size:11px; color:#d1d5db; margin-bottom:3px;">انتخاب پروایدر و مدل ترجمه:</label>
+                        <select id="assignTranslateSelect"><option value="">-- انتخاب پروایدر --</option></select>
+                    </div>
+                    <div>
+                        <label for="keyTranslateSelect" style="display:block; font-size:11px; color:#fcd34d; margin-bottom:3px;">🔑 انتخاب کلید API ترجمه:</label>
+                        <select id="keyTranslateSelect"><option value="">-- انتخاب کلید --</option></select>
+                    </div>
+                </div>
+
+                <div class="input-type-selector">
+                    <button type="button" class="tab-btn active" id="tabUpload">آپلود فایل صوتی 📁</button>
+                    <button type="button" class="tab-btn" id="tabLink">وارد کردن لینک مستقیم 🔗</button>
+                </div>
+
+                <form id="uploadForm">
+                    <div class="file-input-wrapper" id="fileInputWrapper">
+                        <label for="file-upload" class="custom-file-upload" id="file-label">
+                            انتخاب فایل صوتی فیلم (تا ۲۵ مگابایت)
+                        </label>
+                        <input id="file-upload" type="file" accept="audio/*" />
+                    </div>
+
+                    <div class="link-input-wrapper" id="linkInputWrapper">
+                        <input type="url" id="audio-url" class="link-input" placeholder="https://example.com/audio.mp3" />
+                    </div>
+
+                    <div class="translate-box" style="margin-bottom: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0; font-size: 13px;">
+                            <input type="checkbox" id="googleTranslateCheckbox" style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>🌍 ترجمه زیرنویس به فارسی با گوگل ترنسلیت (پس‌زمینه)</span>
+                        </label>
+                    </div>
+
+                    <div class="translate-box" style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0; font-size: 13px;">
+                            <input type="checkbox" id="translateCheckbox" checked style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>🌐 ترجمه هوشمند زیرنویس به فارسی با مدل انتخاب‌شده</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="submitBtn">استخراج و ساخت SRT 🚀</button>
+
+                    <div class="progress-container" id="progressContainer">
+                        <div class="progress-status">
+                            <span id="progressState">در حال آماده‌سازی...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar" id="progressBar"></div>
+                        </div>
+                    </div>
+
+                    <button type="button" id="downloadBtn" class="download-btn">دانلود فایل زیرنویس (SRT) 📥</button>
+                </form>
+                <div class="loader" id="loader"></div>
+                <div id="output"></div>
+            </div>
+
+            <!-- تب ۲: ترجمه فایل SRT -->
+            <div id="tabContentTranslate" class="tab-content">
+                <div class="section-box">
+                    <span class="section-title" style="color: #818cf8;">🌐 انتخاب پروایدر، مدل و کلید ترجمه</span>
+                    <div style="margin-bottom: 8px;">
+                        <label for="srtProviderSelect" style="display:block; font-size:11px; color:#d1d5db; margin-bottom:3px;">۱. انتخاب پروایدر:</label>
+                        <select id="srtProviderSelect"><option value="">-- انتخاب پروایدر --</option></select>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label for="srtModelSelect" style="display:block; font-size:11px; color:#d1d5db; margin-bottom:3px;">۲. انتخاب مدل:</label>
+                        <select id="srtModelSelect"><option value="">-- ابتدا پروایدر را انتخاب کنید --</option></select>
+                    </div>
+                    <div>
+                        <label for="srtKeySelect" style="display:block; font-size:11px; color:#fcd34d; margin-bottom:3px;">۳. انتخاب کلید API:</label>
+                        <select id="srtKeySelect"><option value="">-- انتخاب کلید --</option></select>
+                    </div>
+                </div>
+
+                <div class="input-type-selector">
+                    <button type="button" class="tab-btn active" id="srtTabUpload">آپلود فایل SRT 📁</button>
+                    <button type="button" class="tab-btn" id="srtTabLink">وارد کردن لینک مستقیم 🔗</button>
+                </div>
+
+                <form id="srtUploadForm">
+                    <div class="file-input-wrapper" id="srtFileInputWrapper">
+                        <label for="srt-file-upload" class="custom-file-upload" id="srt-file-label">
+                            انتخاب فایل زیرنویس (SRT)
+                        </label>
+                        <input id="srt-file-upload" type="file" accept=".srt" />
+                    </div>
+
+                    <div class="link-input-wrapper" id="srtLinkInputWrapper">
+                        <input type="url" id="srt-url" class="link-input" placeholder="https://example.com/subtitle.srt" />
+                    </div>
+
+                    <div class="translate-box" style="margin-bottom: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0; font-size: 13px;">
+                            <input type="checkbox" id="srtGoogleTranslateCheckbox" style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>🌍 ترجمه به فارسی با گوگل ترنسلیت (پس‌زمینه)</span>
+                        </label>
+                    </div>
+
+                    <div class="translate-box" style="margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #e0e0e0; font-size: 13px;">
+                            <input type="checkbox" id="srtAiTranslateCheckbox" checked style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>🌐 ترجمه هوشمند با مدل انتخاب‌شده</span>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="srtSubmitBtn">ترجمه زیرنویس 🌐</button>
+
+                    <div class="progress-container" id="srtProgressContainer">
+                        <div class="progress-status">
+                            <span id="srtProgressState">در حال آماده‌سازی...</span>
+                            <span id="srtProgressPercent">0%</span>
+                        </div>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar" id="srtProgressBar"></div>
+                        </div>
+                    </div>
+
+                    <button type="button" id="srtDownloadBtn" class="download-btn">دانلود فایل ترجمه‌شده (SRT) 📥</button>
+                </form>
+                <div class="loader" id="srtLoader"></div>
+                <div id="srtOutput"></div>
+            </div>
+
+            <!-- تب ۳: تنظیمات -->
+            <div id="tabContentSettings" class="tab-content">
+                <div class="section-box">
+                    <span class="section-title">📡 ثبت پروایدر و مدل جدید</span>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <input type="text" id="provName" placeholder="نام پروایدر (مثلا: Groq)">
+                        <input type="text" id="provBaseUrl" placeholder="Base URL (اندپوینت)" value="https://ai-reverse.aialsabela.workers.dev/groq/openai/v1">
+                        <input type="text" id="provModel" placeholder="نام مدل — چند مدل را با کاما جدا کنید (مثلا: model-a, model-b)">
+                        <button type="button" class="btn-primary" id="saveEndpointBtn">افزودن پروایدر به لیست ➕</button>
+                    </div>
+                </div>
+
+                <div class="section-box">
+                    <span class="section-title">🔑 ثبت و مدیریت کلیدهای API</span>
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+                        <input type="text" id="keyLabelInput" placeholder="برچسب کلید (مثلا: groq1)">
+                        <div class="row-group">
+                            <input type="password" id="keyValueInput" placeholder="ورود کلید API" style="flex: 1;">
+                            <button type="button" class="btn-primary" id="saveKeyBtn" style="background-color: #10b981; width: auto; white-space: nowrap;">ثبت 🔑</button>
+                        </div>
+                    </div>
+
+                    <hr style="border: 0; border-top: 1px solid #374151; margin: 12px 0;">
+
+                    <span class="section-title" style="color: #fca5a5;">🗑️ حذف کلید API</span>
+                    <div class="row-group">
+                        <select id="keyListSelect" style="flex: 1;">
+                            <option value="">-- لیست کلیدها --</option>
                         </select>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary" id="p2_submitBtn">شروع ترجمه و ساخت 🚀</button>
-
-                    <div id="p2_progressBox" style="display: none; margin-top: 16px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-                            <span id="p2_progressState">در حال آماده‌سازی فایل...</span>
-                            <span id="p2_progressPercent">0%</span>
-                        </div>
-                        <div class="progress-bar-wrapper">
-                            <div class="progress-bar" id="p2_progressBar"></div>
-                        </div>
-                    </div>
-
-                    <button type="button" id="p2_downloadBtn" class="btn btn-green" style="display: none; margin-top: 12px;">دانلود فایل زیرنویس ترجمه شده 📥</button>
-                </form>
-
-                <div id="p2_status" class="status-msg"></div>
-            </div>
-        </div>
-
-        <!-- ==================== تب ۳: تنظیمات عمومی (ثبت و مدیریت کامل کلیدها، پرووایدرها و مدل‌ها) ==================== -->
-        <div id="tab-settings" class="tab-content">
-            <div class="card">
-                <div class="card-title">🔑 مدیریت و ثبت کلیدهای API</div>
-                <div class="form-group">
-                    <label>انتخاب پرووایدر</label>
-                    <select id="keyProviderSelect"></select>
-                </div>
-                <div class="form-row">
-                    <div style="flex: 1;">
-                        <input type="text" id="keyLabelInput" placeholder="نام/لیبل کلید">
-                    </div>
-                    <div style="flex: 1.5;">
-                        <input type="password" id="keyValueInput" class="ltr-input" placeholder="sk-... یا gsk_...">
+                        <button type="button" class="delete-btn" id="deleteKeyBtn" style="width: auto;">حذف 🗑️</button>
                     </div>
                 </div>
-                <button class="btn btn-green" onclick="saveApiKey()">➕ ذخیره کلید API</button>
-                <div class="items-list" id="keysListContainer"></div>
-            </div>
 
-            <div class="card">
-                <div class="card-title">⚙️ مدیریت پرووایدرها و مدل‌ها</div>
-                <div class="form-row">
-                    <div style="flex: 1;">
-                        <input type="text" id="providerIdInput" class="ltr-input" placeholder="شناسه (مثلا: groq)">
+                <div class="section-box" style="margin-bottom: 30px;">
+                    <span class="section-title">📦 پشتیبانی و بازیابی (فرمت JSON)</span>
+                    <p style="font-size: 11px; color: #9ca3af; margin: 0 0 8px;">
+                        ⚠️ کلیدهای API فقط در مرورگر همین دستگاه (localStorage) ذخیره می‌شوند و به هیچ سروری فرستاده نمی‌شوند.
+                        فایل پشتیبان شامل کلیدهاست؛ آن را جایی امن نگه دارید.
+                    </p>
+                    <div class="backup-group">
+                        <button type="button" class="backup-btn" id="exportBtn">پشتیبان‌گیری 📥</button>
+                        <button type="button" class="backup-btn" id="importBtn">بازیابی 📤</button>
+                        <input type="file" id="importFile" accept=".json" style="display: none;">
                     </div>
-                    <div style="flex: 1.5;">
-                        <input type="text" id="providerNameInput" placeholder="نام نمایشی (مثلا: Groq AI)">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <input type="url" id="providerEndpointInput" class="ltr-input" placeholder="آدرس API">
-                </div>
-                <div class="form-group">
-                    <input type="text" id="providerModelsInput" class="ltr-input" placeholder="مدل‌ها (با ویرگول جدا کنید)">
-                </div>
-                <button class="btn btn-primary" onclick="saveProvider()">💾 ذخیره پرووایدر / مدل‌ها</button>
-                <div style="margin-top: 16px;">
-                    <label>لیست پرووایدرهای ثبت‌شده:</label>
-                    <div class="items-list" id="providersListContainer"></div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-title">📦 پشتیبان‌گیری و بازیابی اطلاعات</div>
-                <div class="form-row" style="margin-bottom: 0;">
-                    <button class="btn btn-outline" onclick="exportData()">📥 خروجی بکاپ</button>
-                    <button class="btn btn-outline" onclick="document.getElementById('importFileInput').click()">📤 بازیابی بکاپ</button>
-                    <input type="file" id="importFileInput" accept=".json" style="display: none;" onchange="importData(event)">
                 </div>
             </div>
         </div>
-
     </div>
 
-    <script>
-        // سوئیچ تب‌ها
-        function switchMainTab(tab) {
-            document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-            const tabs = ['extract', 'translate', 'settings'];
-            const activeIdx = tabs.indexOf(tab);
-            
-            if (activeIdx !== -1) {
-                document.querySelectorAll('.main-tab-btn')[activeIdx].classList.add('active');
-                document.getElementById(`tab-${tab}`).classList.add('active');
-            }
-        }
-
-        // =========================================================
-        // مدیریت دیتا و تنظیمات (پرووایدرها و کلیدها)
-        // =========================================================
-        let providers = JSON.parse(localStorage.getItem('app_providers') || '[]');
-        let apiKeys = JSON.parse(localStorage.getItem('app_api_keys') || '[]');
-
-        // پیش‌فرض اگر پرووایدر Groq تعریف نشده باشد
-        if (providers.length === 0) {
-            providers = [{
-                id: 'groq',
-                name: 'Groq AI',
-                endpoint: 'https://aud-totxt-reverse.aialsabela.workers.dev/openai/v1/audio/transcriptions',
-                models: ['whisper-large-v3-turbo', 'whisper-large-v3']
-            }];
-            localStorage.setItem('app_providers', JSON.stringify(providers));
-        }
-
-        function renderSettings() {
-            // آپدیت منوی پرووایدر در تنظیمات
-            const keyProviderSelect = document.getElementById('keyProviderSelect');
-            keyProviderSelect.innerHTML = '';
-            providers.forEach(p => {
-                keyProviderSelect.innerHTML += `<option value="${p.id}">${p.name} (${p.id})</option>`;
-            });
-
-            // رندر لیست کلیدها در تنظیمات
-            const keysListContainer = document.getElementById('keysListContainer');
-            keysListContainer.innerHTML = apiKeys.length === 0 ? '<div style="color:var(--text-muted); font-size:12px; text-align:center;">هیچ کلیدی ثبت نشده است.</div>' : '';
-            apiKeys.forEach((item, index) => {
-                const prov = providers.find(p => p.id === item.providerId);
-                keysListContainer.innerHTML += `
-                    <div class="list-item">
-                        <div>
-                            <b>${item.label}</b> (${prov ? prov.name : item.providerId})<br>
-                            <small style="color:var(--text-muted)">${item.key.substring(0, 10)}...</small>
-                        </div>
-                        <button class="delete-btn" onclick="deleteApiKey(${index})">🗑️</button>
-                    </div>
-                `;
-            });
-
-            // رندر لیست پرووایدرها در تنظیمات
-            const providersListContainer = document.getElementById('providersListContainer');
-            providersListContainer.innerHTML = providers.length === 0 ? '<div style="color:var(--text-muted); font-size:12px; text-align:center;">هیچ پرووایدی ثبت نشده است.</div>' : '';
-            providers.forEach((p, index) => {
-                providersListContainer.innerHTML += `
-                    <div class="list-item">
-                        <div>
-                            <b>${p.name}</b> (${p.id})<br>
-                            <small style="color:var(--text-muted)">مدل‌ها: ${p.models.join(', ')}</small>
-                        </div>
-                        <button class="delete-btn" onclick="deleteProvider(${index})">🗑️</button>
-                    </div>
-                `;
-            });
-
-            // همگام‌سازی منوی کشویی انتخاب کلید در تب استخراج
-            updateExtractTabKeys();
-        }
-
-        function updateExtractTabKeys() {
-            const p1Select = document.getElementById('p1_apiSelect');
-            p1Select.innerHTML = '';
-            
-            // دریافت تمام کلیدها (یا کلیدهای پرووایدر Groq)
-            if (apiKeys.length === 0) {
-                p1Select.innerHTML = '<option value="">-- هیچ کلیدی وجود ندارد (از تنظیمات اضافه کنید) --</option>';
-                return;
-            }
-
-            apiKeys.forEach((item) => {
-                const option = document.createElement('option');
-                option.value = item.key;
-                option.textContent = `${item.label} (${item.key.substring(0, 8)}...)`;
-                p1Select.appendChild(option);
-            });
-
-            const lastSelected = localStorage.getItem('last_selected_api_key');
-            if (lastSelected) p1Select.value = lastSelected;
-        }
-
-        document.getElementById('p1_apiSelect').addEventListener('change', function() {
-            localStorage.setItem('last_selected_api_key', this.value);
-        });
-
-        function saveApiKey() {
-            const providerId = document.getElementById('keyProviderSelect').value;
-            const label = document.getElementById('keyLabelInput').value.trim();
-            const key = document.getElementById('keyValueInput').value.trim();
-            if (!label || !key) return alert('لطفاً تمامی فیلدها را پر کنید.');
-            
-            apiKeys.push({ providerId, label, key });
-            localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
-            localStorage.setItem('last_selected_api_key', key);
-            
-            document.getElementById('keyLabelInput').value = '';
-            document.getElementById('keyValueInput').value = '';
-            renderSettings();
-            alert('کلید API با موفقیت ثبت شد.');
-        }
-
-        function deleteApiKey(index) {
-            apiKeys.splice(index, 1);
-            localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
-            renderSettings();
-        }
-
-        function saveProvider() {
-            const id = document.getElementById('providerIdInput').value.trim();
-            const name = document.getElementById('providerNameInput').value.trim();
-            const endpoint = document.getElementById('providerEndpointInput').value.trim();
-            const modelsRaw = document.getElementById('providerModelsInput').value.trim();
-            if (!id || !name || !endpoint) return alert('لطفا مشخصات پرووایدر را وارد کنید.');
-            
-            const models = modelsRaw ? modelsRaw.split(',').map(m => m.trim()) : ['default'];
-            const existingIndex = providers.findIndex(p => p.id === id);
-            
-            if (existingIndex >= 0) {
-                providers[existingIndex] = { id, name, endpoint, models };
-            } else {
-                providers.push({ id, name, endpoint, models });
-            }
-            
-            localStorage.setItem('app_providers', JSON.stringify(providers));
-            renderSettings();
-            alert('پرووایدر با موفقیت ثبت/ویرایش شد.');
-        }
-
-        function deleteProvider(index) {
-            providers.splice(index, 1);
-            localStorage.setItem('app_providers', JSON.stringify(providers));
-            renderSettings();
-        }
-
-        function exportData() {
-            const data = { providers, apiKeys };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'backup.json';
-            a.click();
-        }
-
-        function importData(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const parsed = JSON.parse(evt.target.result);
-                    if (parsed.providers) providers = parsed.providers;
-                    if (parsed.apiKeys) apiKeys = parsed.apiKeys;
-                    localStorage.setItem('app_providers', JSON.stringify(providers));
-                    localStorage.setItem('app_api_keys', JSON.stringify(apiKeys));
-                    renderSettings();
-                    alert('اطلاعات با موفقیت بازیابی شد.');
-                } catch(err) {
-                    alert('فایل وارد شده معتبر نیست.');
-                }
-            }
-            reader.readAsText(file);
-        }
-
-        // =========================================================
-        // logic تب استخراج (AuTotxt)
-        // =========================================================
-        (function initProject1() {
-            let currentMode = "upload";
-            let srtContent = "";
-            let outputFileName = "subtitle";
-
-            const tabUpload = document.getElementById('p1_tabUpload');
-            const tabLink = document.getElementById('p1_tabLink');
-            const fileWrapper = document.getElementById('p1_fileWrapper');
-            const linkWrapper = document.getElementById('p1_linkWrapper');
-            const fileInput = document.getElementById('p1_fileInput');
-            const fileLabel = document.getElementById('p1_fileLabel');
-            const urlInput = document.getElementById('p1_urlInput');
-            const submitBtn = document.getElementById('p1_submitBtn');
-            const downloadBtn = document.getElementById('p1_downloadBtn');
-            const warningBox = document.getElementById('audioWarningBox');
-            const progressBox = document.getElementById('p1_progressBox');
-            const progressBar = document.getElementById('p1_progressBar');
-            const progressPercent = document.getElementById('p1_progressPercent');
-            const progressState = document.getElementById('p1_progressState');
-            const outputText = document.getElementById('audioOutputText');
-            const apiSelect = document.getElementById('p1_apiSelect');
-
-            tabUpload.addEventListener('click', () => {
-                currentMode = "upload";
-                tabUpload.classList.add('active');
-                tabLink.classList.remove('active');
-                fileWrapper.style.display = 'block';
-                linkWrapper.style.display = 'none';
-                warningBox.style.display = 'none';
-                submitBtn.disabled = false;
-            });
-
-            tabLink.addEventListener('click', () => {
-                currentMode = "link";
-                tabLink.classList.add('active');
-                tabUpload.classList.remove('active');
-                fileWrapper.style.display = 'none';
-                linkWrapper.style.display = 'block';
-                warningBox.style.display = 'none';
-                submitBtn.disabled = false;
-            });
-
-            fileInput.addEventListener('change', function() {
-                if (this.files && this.files[0]) {
-                    const file = this.files[0];
-                    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
-                    fileLabel.textContent = `${file.name} (${sizeMb} MB)`;
-                    outputFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-                    if (file.size > 25 * 1024 * 1024) {
-                        warningBox.style.display = 'block';
-                        submitBtn.disabled = true;
-                    } else {
-                        warningBox.style.display = 'none';
-                        submitBtn.disabled = false;
-                    }
-                }
-            });
-
-            function formatSRTTime(seconds) {
-                const date = new Date(seconds * 1000);
-                const hh = String(Math.floor(seconds / 3600)).padStart(2, '0');
-                const mm = String(date.getUTCMinutes()).padStart(2, '0');
-                const ss = String(date.getUTCSeconds()).padStart(2, '0');
-                const ms = String(date.getUTCMilliseconds()).padStart(3, '0');
-                return `${hh}:${mm}:${ss},${ms}`;
-            }
-
-            function convertToSRT(segments) {
-                let srt = "";
-                segments.forEach((segment, index) => {
-                    srt += `${index + 1}\n${formatSRTTime(segment.start)} --> ${formatSRTTime(segment.end)}\n${segment.text.trim()}\n\n`;
-                });
-                return srt;
-            }
-
-            function sendFileToGroq(file, apiKey) {
-                progressBox.style.display = 'block';
-                progressBar.style.width = '0%';
-                progressPercent.innerText = '0%';
-                progressState.innerText = 'در حال ارسال فایل صوتی...';
-                outputText.style.display = 'none';
-                downloadBtn.style.display = 'none';
-                submitBtn.disabled = true;
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('model', 'whisper-large-v3-turbo');
-                formData.append('temperature', '0.0');
-                formData.append('response_format', 'verbose_json');
-
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', 'https://aud-totxt-reverse.aialsabela.workers.dev/openai/v1/audio/transcriptions');
-                if (apiKey) xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
-
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        progressBar.style.width = percent + '%';
-                        progressPercent.innerText = percent + '%';
-                        progressState.innerText = percent < 100 ? 'در حال آپلود...' : 'پردازش هوش مصنوعی...';
-                    }
-                });
-
-                xhr.onload = function() {
-                    submitBtn.disabled = false;
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-                            if (data.segments) {
-                                srtContent = convertToSRT(data.segments);
-                                outputText.innerText = srtContent;
-                                outputText.style.display = 'block';
-                                progressState.innerText = 'عملیات با موفقیت انجام شد! 🎉';
-                                downloadBtn.style.display = 'block';
-                            } else {
-                                throw new Error("پاسخ فاقد بخش زمان‌بندی است.");
-                            }
-                        } catch (err) {
-                            outputText.innerText = "خطا در پردازش: " + err.message;
-                            outputText.style.display = 'block';
-                        }
-                    } else {
-                        outputText.innerText = "خطا در سرور: " + xhr.statusText;
-                        outputText.style.display = 'block';
-                    }
-                };
-
-                xhr.onerror = function() {
-                    submitBtn.disabled = false;
-                    outputText.innerText = "خطا در ارتباط شبکه.";
-                    outputText.style.display = 'block';
-                };
-
-                xhr.send(formData);
-            }
-
-            document.getElementById('p1_audioForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const apiKey = apiSelect.value;
-                if (!apiKey) {
-                    alert('لطفاً ابتدا یک کلید API از تب «تنظیمات عمومی» اضافه کنید.');
-                    return;
-                }
-
-                if (currentMode === "upload") {
-                    const file = fileInput.files[0];
-                    if (!file || file.size > 25 * 1024 * 1024) return;
-                    sendFileToGroq(file, apiKey);
-                } else {
-                    const url = urlInput.value.trim();
-                    if (!url) return;
-                    progressBox.style.display = 'block';
-                    progressState.innerText = 'در حال دانلود فایل صوتی از لینک...';
-                    try {
-                        const res = await fetch(url);
-                        const blob = await res.blob();
-                        if (blob.size > 25 * 1024 * 1024) {
-                            alert("حجم فایل لینک بیش از ۲۵ مگابایت است.");
-                            return;
-                        }
-                        const file = new File([blob], "audio.mp3", { type: blob.type });
-                        sendFileToGroq(file, apiKey);
-                    } catch (err) {
-                        alert("خطا در دریافت فایل از لینک: " + err.message);
-                    }
-                }
-            });
-
-            downloadBtn.addEventListener('click', () => {
-                if (!srtContent) return;
-                const blob = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${outputFileName}.srt`;
-                a.click();
-                URL.revokeObjectURL(url);
-            });
-        })();
-
-        // =========================================================
-        // logic تب ترجمه (SubStudioAI)
-        // =========================================================
-        (function initProject2() {
-            let translateDownloadUrl = null;
-            let translateOutputFileName = "";
-
-            const fileInput = document.getElementById('p2_fileInput');
-            const fileLabel = document.getElementById('p2_fileLabel');
-            const submitBtn = document.getElementById('p2_submitBtn');
-            const downloadBtn = document.getElementById('p2_downloadBtn');
-            const statusMsg = document.getElementById('p2_status');
-            const progressBox = document.getElementById('p2_progressBox');
-            const progressBar = document.getElementById('p2_progressBar');
-            const progressPercent = document.getElementById('p2_progressPercent');
-            const progressState = document.getElementById('p2_progressState');
-
-            fileInput.addEventListener('change', function() {
-                if (this.files && this.files[0]) {
-                    fileLabel.textContent = this.files[0].name;
-                    fileLabel.style.borderColor = 'var(--accent-green)';
-                }
-            });
-
-            document.getElementById('p2_translateForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
-                if (!fileInput.files.length) return;
-                const file = fileInput.files[0];
-                translateOutputFileName = file.name.replace(/\.[^/.]+$/, "");
-                const langTo = document.getElementById('p2_langTo').value;
-
-                downloadBtn.style.display = 'none';
-                if (translateDownloadUrl) {
-                    window.URL.revokeObjectURL(translateDownloadUrl);
-                    translateDownloadUrl = null;
-                }
-
-                submitBtn.disabled = true;
-                statusMsg.className = 'status-msg';
-                statusMsg.innerText = '';
-                progressBox.style.display = 'block';
-                progressBar.style.width = '20%';
-                progressPercent.innerText = '20%';
-                progressState.innerText = 'در حال ترجمه دیالوگ‌ها...';
-
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('to', langTo);
-
-                try {
-                    const response = await fetch('/translate-srt', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.details || 'خطا در ترجمه فایل');
-                    }
-
-                    progressBar.style.width = '100%';
-                    progressPercent.innerText = '100%';
-                    progressState.innerText = 'ترجمه با موفقیت انجام شد! 🎉';
-
-                    const blob = await response.blob();
-                    translateDownloadUrl = window.URL.createObjectURL(blob);
-                    statusMsg.className = 'status-msg success';
-                    downloadBtn.style.display = 'block';
-
-                } catch (error) {
-                    progressBar.style.width = '0%';
-                    progressPercent.innerText = '0%';
-                    statusMsg.className = 'status-msg error';
-                    statusMsg.innerText = 'خطا: ' + error.message;
-                    progressState.innerText = 'خطا در عملیات ❌';
-                } finally {
-                    submitBtn.disabled = false;
-                }
-            });
-
-            downloadBtn.addEventListener('click', function() {
-                if (!translateDownloadUrl) return;
-                const langTo = document.getElementById('p2_langTo').value;
-                const a = document.createElement('a');
-                a.href = translateDownloadUrl;
-                a.download = `${translateOutputFileName}_${langTo}.srt`;
-                a.click();
-                this.style.display = 'none';
-                progressBox.style.display = 'none';
-                statusMsg.innerText = 'فایل دانلود شد.';
-            });
-        })();
-
-        // اجرای اولیه تنظیمات
-        renderSettings();
-    </script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>

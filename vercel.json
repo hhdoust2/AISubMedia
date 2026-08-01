@@ -1,16 +1,12 @@
 {
   "rewrites": [
-    {
-      "source": "/translate-srt",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/transcribe-aac",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
+    { "source": "/translate-google", "destination": "/api/index" },
+    { "source": "/translate-ai", "destination": "/api/index" },
+    { "source": "/transcribe-aac", "destination": "/api/index" }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30
     }
-  ]
+  }
 }
