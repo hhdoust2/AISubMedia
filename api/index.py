@@ -415,36 +415,11 @@ def _extract_message_text(message):
     return (content or "").strip()
 
 
-_KV_PAIR_RE = re.compile(r'"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)"')
-
-
-def _lenient_extract_pairs(text):
-    """
-    وقتی پاسخ مدل به‌خاطر محدودیت max_tokens یا خطای فرمت وسط راه قطع/خراب شده
-    و JSON کامل و معتبر نیست، به‌جای انداختن کل دسته، هر جفت "کلید": "مقدار"ی
-    که سالم است را با regex استخراج می‌کنیم. نتیجه این است که خطوطی که مدل قبل
-    از قطع‌شدن موفق به ترجمه‌شان شده ذخیره می‌شوند و فقط باقی خطوط (که اصلاً
-    ترجمه نشدند) به متن اصلی برمی‌گردند — نه کل دسته.
-    """
-    result = {}
-    for m in _KV_PAIR_RE.finditer(text):
-        key, raw_val = m.group(1), m.group(2)
-        try:
-            val = json.loads(f'"{raw_val}"')
-        except json.JSONDecodeError:
-            val = raw_val
-        result[key] = val
-    return result
-
-
 def _parse_json_object(raw_text):
     """
     بعضی مدل‌ها با وجود دستور صریح در پرامپت، JSON را داخل ```json ... ``` می‌فرستند
     یا قبل/بعدش یک جمله توضیحی اضافه می‌کنند. اول fence مارک‌داون را پاک می‌کنیم،
     اگر باز هم parse نشد، اولین بلوک {...} کامل متن را با regex استخراج می‌کنیم.
-    اگر آن هم شکست خورد (معمولاً یعنی پاسخ وسط راه قطع شده)، به‌جای شکست کامل
-    دسته، هر جفت کلید-مقدار سالم را جداگانه نجات می‌دهیم (نگاه کنید به
-    _lenient_extract_pairs).
     """
     text = re.sub(r"^```(?:json)?\s*|\s*```\s*$", "", raw_text.strip(), flags=re.IGNORECASE).strip()
     try:
@@ -453,25 +428,18 @@ def _parse_json_object(raw_text):
         pass
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-    partial = _lenient_extract_pairs(text)
-    if partial:
-        return partial
+        return json.loads(match.group(0))
     raise ValueError("پاسخ مدل یک JSON معتبر نبود.")
 
 
-def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, use_max_tokens=True, timeout=25):
+def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, timeout=25):
     """
     فقط یک درخواست واقعی به پروایدر می‌زند و هیچ time.sleep/retry داخلی ندارد
-    (به‌جز دو fallback فوری — بدون response_format و بدون max_tokens — که
-    درخواست HTTP اضافه هستند نه sleep). دلیل: توابع سرورلس Vercel یک سقف
-    زمانی اجرا دارند؛ اگر اینجا چند بار retry+backoff انجام بدهیم، به‌راحتی
-    از آن سقف رد می‌شویم. به‌جایش هر تلاش یک درخواست HTTP سریع است و یک
-    status واضح برمی‌گرداند تا فرانت‌اند خودش retry + backoff + احترام به
-    Retry-After را مدیریت کند.
+    (به‌جز یک fallback فوری بدون response_format، که یک درخواست HTTP اضافه است
+    نه یک sleep). دلیل: توابع سرورلس Vercel یک سقف زمانی اجرا دارند؛ اگر اینجا
+    چند بار retry+backoff انجام بدهیم، به‌راحتی از آن سقف رد می‌شویم. به‌جایش هر
+    تلاش یک درخواست HTTP سریع است و یک status واضح برمی‌گرداند تا فرانت‌اند خودش
+    retry + backoff + احترام به Retry-After را مدیریت کند.
 
     خروجی: (texts, status, retry_after)
     status یکی از: 'ok' | 'rate_limited' | 'server_error' | 'bad_request' | 'parse_error'
@@ -492,15 +460,6 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, u
     }
     if use_json_mode:
         payload["response_format"] = {"type": "json_object"}
-    if use_max_tokens:
-        # نکته مهم: بدون max_tokens صریح، بسیاری از پروایدرها از سقف پیش‌فرض
-        # کوتاهی استفاده می‌کنند و پاسخ JSON وسط راه قطع می‌شود (پارس‌شدن
-        # ناقص که در عمل مثل "شکست‌خوردن دسته" دیده می‌شود). اما بعضی
-        # مدل‌های محدودتر با هر مقدار صریحی که بیشتر از سقف واقعی مدلشان
-        # باشد، کل درخواست را با 400 رد می‌کنند — به همین دلیل اگر با این
-        # مقدار 400 گرفتیم، در ادامه یک بار بدون max_tokens هم امتحان
-        # می‌کنیم (به سقف پیش‌فرض خودِ پروایدر برمی‌گردیم).
-        payload["max_tokens"] = min(2048, max(600, len(non_empty) * 100))
 
     try:
         response = requests.post(endpoint, headers=headers, json=payload, timeout=timeout)
@@ -523,14 +482,7 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, u
         # خیلی از مدل‌های رایگان/سازگار با OpenAI پارامتر response_format را
         # پشتیبانی نمی‌کنند و با 400 رد می‌کنند. یک بار سریع بدون آن امتحان
         # می‌کنیم (بدون sleep).
-        return _translate_text_batch(texts, endpoint, headers, model, use_json_mode=False, use_max_tokens=use_max_tokens, timeout=timeout)
-
-    if response.status_code == 400 and use_max_tokens:
-        # اگر بدون response_format هم باز 400 گرفتیم، احتمالاً مقدار
-        # max_tokens از سقف واقعی مدل (مخصوصاً مدل‌های رایگان با ظرفیت کم)
-        # بیشتر بوده. یک بار دیگر بدون max_tokens امتحان می‌کنیم تا پروایدر
-        # از سقف پیش‌فرض خودش استفاده کند.
-        return _translate_text_batch(texts, endpoint, headers, model, use_json_mode=False, use_max_tokens=False, timeout=timeout)
+        return _translate_text_batch(texts, endpoint, headers, model, use_json_mode=False, timeout=timeout)
 
     if response.status_code != 200:
         logger.warning("خطای پروایدر (%s): %s", response.status_code, response.text[:300])
