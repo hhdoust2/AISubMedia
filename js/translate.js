@@ -138,7 +138,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ texts: batchTexts, provider_url: provUrl, model, api_key: apiKey }),
-        }, 30000);
+        }, 110000);
 
         let data = null;
         try {
