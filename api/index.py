@@ -171,6 +171,17 @@ class _LineCountMismatch(Exception):
     """وقتی تعداد خط‌های برگشتی از سرویس ترجمه با ورودی یکی نیست."""
 
 
+# جداکنندهٔ بین خط‌ها هنگام ترکیب چند خط در یک درخواست ترجمه به گوگل.
+# قبلاً از "\n" ساده استفاده می‌شد، ولی گوگل ترنسلیت تضمین نمی‌کند تعداد خط‌ها
+# را حفظ کند (مثلاً دو خط کوتاه مثل "..." را ادغام می‌کند و یک جای دیگر، برای
+# جبران، یک جمله بلند را خودش می‌شکند). نتیجه: طول خروجی با ورودی برابر می‌ماند
+# (پس چک طول رد نمی‌شود) ولی محتوا از همان نقطه جابه‌جا می‌شود و چند دیالوگ با
+# هم قاطی می‌شوند. یک توکن غیرزبانی (شبیه کد) خیلی کمتر احتمال دارد ادغام یا
+# حذف شود، چون گوگل معمولاً رشته‌های شبیه کد را دست‌نخورده رد می‌کند.
+_SEP_TOKEN = "\n@@S@@\n"
+_SEP_PATTERN = re.compile(r"\s*@@\s*S\s*@@\s*")
+
+
 # محدودیت‌های ضد سوءاستفاده برای هر دو مسیر ترجمه
 MAX_TEXTS_PER_REQUEST = 200
 MAX_TEXT_LENGTH = 4000
@@ -190,16 +201,17 @@ def _validate_texts_payload(texts):
 
 def _translate_joined(texts, target, engine_cls):
     """
-    به‌جای فرستادن N درخواست جدا برای N خط، همه خط‌ها را با \\n به هم می‌چسبانیم
-    و در یک درخواست واحد ترجمه می‌کنیم — این تفاوت اصلی سرعت است
+    به‌جای فرستادن N درخواست جدا برای N خط، همه خط‌ها را با یک توکن مطمئن به هم
+    می‌چسبانیم و در یک درخواست واحد ترجمه می‌کنیم — این تفاوت اصلی سرعت است
     (۱ درخواست شبکه به‌جای ۴۰ درخواست).
     """
-    joined = "\n".join(texts)
+    joined = _SEP_TOKEN.join(texts)
     translator = engine_cls(source="auto", target=target)
     result = translator.translate(joined)
     if not result:
         raise _LineCountMismatch()
-    parts = result.split("\n")
+    parts = _SEP_PATTERN.split(result)
+    parts = [p.strip() for p in parts]
     if len(parts) != len(texts):
         raise _LineCountMismatch()
     return parts
@@ -363,32 +375,22 @@ def transcribe_aac():
 # فایل زیرنویس یه‌جا. دلیل: اگه کل فایل (که می‌تونه چند صد خط باشه) توی یک درخواست
 # HTTP سینک انجام بشه، از سقف زمان اجرای توابع سرورلس Vercel رد می‌شه و کانکشن
 # بی‌جواب می‌مونه. فرانت‌اند خودش فایل رو دسته‌دسته می‌فرسته، هر دسته سریع تموم می‌شه.
-_AI_TRANSLATE_PROMPT_TEMPLATE = """You are an expert Persian movie subtitle translator and professional dubbing scriptwriter.
-Translate the values of the JSON object into natural, fluent, highly conversational Tehrani Persian (فارسی روان، محاوره‌ای و دوبله‌ای).
+_AI_TRANSLATE_PROMPT_TEMPLATE = """شما یک مترجم حرفه‌ای زیرنویس فیلم و سریال و نویسندهٔ باتجربهٔ متن دوبله هستید.
+مقادیر داخل آبجکت JSON زیر را به فارسی روان، محاوره‌ای و طبیعی (لحن دوبلهٔ تهرانی) ترجمه کنید.
 
-توجه داشته باش
-شما یک مترجم حرفه‌ای فیلم و سریال هستید.
-متن زیر بخشی از دیالوگ یک اثر ویدیویی/صوتی است. لطفاً آن را به زبان فارسی روان، اصیل و متناسب با لحن سینمایی (عامیانه اما تمیز) ترجمه کنید.
+قواعد ترجمه:
+۱. **لحن طبیعی و محاوره‌ای:** ترجمه باید کاملاً محاوره‌ای و طبیعی باشد، دقیقاً مثل چیزی که در دوبلهٔ حرفه‌ای فیلم می‌شنوید. از فارسی رسمی/کتابی کاملاً پرهیز کنید (مثلاً «می‌ره» به‌جای «می‌رود»، «می‌خوام» به‌جای «می‌خواهم»).
+۲. **دقت در معنا و اصطلاحات:** از اصطلاحات، ضرب‌المثل‌ها و زبان عامیانهٔ اصیل فارسی استفاده کنید که دقیقاً معادل معنایی متن اصلی باشد. جمله‌های عجیب، ترجمهٔ لفظ‌به‌لفظ یا بی‌معنی نسازید.
+۳. **لحن متناسب برای فحش/ناسزا:** شدت فحش را اغراق نکنید و دقیقاً متناسب با شدت متن اصلی ترجمه کنید (مثلاً "What the hell?" را به «این دیگه چه کوفتیه؟» یا «این چه مرگشه؟» ترجمه کنید، نه با ناسزای رکیک، مگر این‌که متن اصلی صریحاً از کلمات رکیک قوی استفاده کرده باشد).
+۴. **کوتاه و مناسب زیرنویس:** جمله‌ها را کوتاه و قابل‌خواندن روی صفحه نگه دارید. علائم نگارشی را به‌شکل طبیعی حفظ کنید.
 
-قواعد مهم:
-۱. از ترجمه لفظ‌به‌لفظ و ماشینی پرهیز کنید.
-۲. اصطلاحات (Idioms) و ضرب‌المثل‌ها را معادل‌سازی سینمایی کنید.
-۳. علائم نگارشی را رعایت کنید.
-۴. فقط و فقط متن ترجمه‌شده را خروجی دهید و هیچ توضیح اضافه، پیش‌گفتار یا پس‌گفتاری ننویسید.
+قواعد حیاتی فرمت خروجی:
+۱. فقط و فقط یک آبجکت JSON معتبر با همان کلیدهای داده‌شده برگردانید.
+۲. کلیدها را عوض نکنید (همان "1", "2" و... باقی بمانند).
+۳. پاسخ را داخل بلوک کد مارک‌داون نگذارید (بدون ```json).
+۴. هیچ توضیح، مقدمه یا جملهٔ اضافه‌ای ننویسید — فقط خودِ JSON.
 
-TRANSLATION RULES:
-1. **Natural Dubbing Style:** Translate into smooth, natural spoken Persian as used in modern movie dubbing. Completely avoid formal or written Farsi (e.g., use "می‌ره" instead of "می‌رود", "می‌خوام" instead of "می‌خواهم").
-2. **Accurate Context & Slang:** Use authentic Persian colloquialisms and idioms that fit the exact meaning. Do NOT create awkward, literal, or nonsense phrases.
-3. **Appropriate Tone for Swearing:** Do NOT over-exaggerate swear words. Match the intensity of the source text (e.g., translate "What the hell?" as "این دیگه چه کوفتیه؟" or "این چه مرگشه؟", NOT with harsh explicit profanity unless the original text explicitly uses strong expletives like "fuck" or "shit").
-4. **Concise for Subtitles:** Keep sentences short and punchy so they are easy to read on screen.
-
-CRITICAL FORMAT RULES:
-1. Respond ONLY with a valid JSON object matching the exact keys provided.
-2. Do NOT change the keys (keep them "1", "2", etc.).
-3. Do NOT wrap the response in markdown code blocks (No ```json).
-4. Do NOT add any notes, intros, or explanations.
-
-JSON to translate:
+این JSON را ترجمه کن:
 {payload}
 """
 
