@@ -351,7 +351,7 @@ def transcribe_aac():
         data = {
             "model": "whisper-large-v3-turbo",
             "temperature": "0.0",
-            "response_format": "json",
+            "response_format": "verbose_json",
         }
         files = {"file": (file.filename, file_bytes, "audio/aac")}
 
