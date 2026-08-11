@@ -109,7 +109,12 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // پروایدر) تا مشکل CORS نداشته باشیم. فایل را یک‌جا به سرور نمی‌فرستیم؛
     // به دسته‌های کوچک تقسیم و هر دسته را جدا می‌فرستیم، وگرنه از سقف زمان
     // اجرای توابع سرورلس رد می‌شویم.
-    const isFreeModel = /:free\b/i.test(model || '');
+    // تشخیص «مدل رایگان» صرفاً از روی اسم قابل‌اعتماد نیست: بعضی پروایدرها به‌جای
+    // "model:free" از "vendor/free" یا "auto-free" استفاده می‌کنن، و بعضی مدل‌های
+    // واقعاً رایگان (مثل مدل‌های Groq) اصلاً کلمه‌ی free توی اسمشون نیست. برای
+    // همین اول به پرچم دستی (که کاربر موقع ثبت پروایدر در تنظیمات مشخص می‌کنه)
+    // اعتماد می‌کنیم؛ اگه ست نشده بود، حداقل الگوهای رایج رو با رگ‌اکس می‌گیریم.
+    const isFreeModel = options.forceFree === true || /[:/-]free\b/i.test(model || '');
     const batchSize = options.batchSize || (isFreeModel ? 15 : 25);
     const concurrency = options.concurrency || (isFreeModel ? 1 : 3);
 
@@ -133,7 +138,23 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
     const maxRetries = isFreeModel ? 5 : 3;
 
+    // کول‌داون مشترک بین همه‌ی worker ها: وقتی هر دسته‌ای به rate_limited برخورد
+    // می‌کند، این محدودیت مختص همون یک دسته نیست، مختص کل پروایدره. بدون این
+    // هماهنگی، بقیه‌ی worker ها با همون سرعت قبلی به محدودیتِ هنوز فعال برخورد
+    // می‌کردن و حتی خودِ retryها هم به‌جای صبرکردن تا پایان پنجره، دوباره به
+    // همون دیوار می‌خوردن و در نهایت maxRetries تموم می‌شد بدون موفقیت.
+    let cooldownUntil = 0;
+
+    async function waitForCooldown() {
+        const now = Date.now();
+        if (now < cooldownUntil) {
+            await sleep(cooldownUntil - now);
+        }
+    }
+
     async function translateOneBatch(batchTexts, attempt = 0) {
+        await waitForCooldown();
+
         const res = await fetchWithTimeout('/translate-ai', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -158,7 +179,14 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         if (data.success !== true && retryableStatuses.includes(data.status) && attempt < maxRetries) {
             const waitMs = data.retry_after
                 ? Math.round(data.retry_after * 1000)
-                : Math.min(1200 * Math.pow(1.8, attempt), 15000);
+                : Math.min(1500 * Math.pow(1.8, attempt), 20000);
+
+            if (data.status === 'rate_limited') {
+                // این کول‌داون فقط مختص این دسته نیست؛ همه‌ی worker ها باید
+                // تا این لحظه صبر کنن، وگرنه دوباره به همین محدودیت می‌خورن.
+                cooldownUntil = Math.max(cooldownUntil, Date.now() + waitMs);
+            }
+
             await sleep(waitMs);
             return translateOneBatch(batchTexts, attempt + 1);
         }
