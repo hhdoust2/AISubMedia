@@ -148,9 +148,14 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // اگه محدودیت «توکن در دقیقه» (نه فقط تعداد درخواست) باشه، صرفاً صبرکردن
     // بعد از ۴۲۹ کافی نیست: با همون همزمانی قبلی (مثلاً ۳ درخواست هم‌زمان)
     // دوباره فوری بودجهٔ تازه‌شارژشده رو پر می‌کنیم و دوباره ۴۲۹ می‌خوریم. برای
-    // همین بعد از اولین برخورد به rate limit، همزمانی رو برای بقیهٔ کار کم
-    // می‌کنیم (فقط کاهش، هیچ‌وقت افزایش — تا کار به‌تدریج آروم‌تر و پایدارتر بشه).
+    // همین بعد از اولین برخورد به rate limit، همزمانی رو یه پله کم می‌کنیم.
+    // ولی این نباید برای همیشه بمونه: اگه بعد از اون چندتا دسته پشت‌سرهم بدون
+    // مشکل موفق بشن (یعنی محدودیت رد شده)، دوباره کم‌کم همزمانی رو بالا می‌بریم
+    // — وگرنه یه محدودیت لحظه‌ای اول فایل، کل بقیهٔ فایل رو تک‌به‌تک و کند
+    // می‌کرد (دقیقاً مشکلی که با میسترال دیدی).
     let allowedConcurrency = concurrency;
+    let successStreak = 0;
+    const RECOVERY_STREAK = 6; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی رو زیاد کن
 
     async function waitForCooldown() {
         const now = Date.now();
@@ -195,6 +200,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 // همزمانی رو یه پله کم می‌کنیم تا بعد از پایان کول‌داون، دوباره
                 // فوری با همون فشار قبلی بودجهٔ تازه‌شارژشده رو پر نکنیم.
                 allowedConcurrency = Math.max(1, allowedConcurrency - 1);
+                successStreak = 0;
             }
 
             await sleep(waitMs);
@@ -203,6 +209,14 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
         if (!Array.isArray(data.translated_texts) || data.translated_texts.length !== batchTexts.length) {
             throw new Error(data.details || data.error || 'پاسخ نامعتبر از سرور ترجمه.');
+        }
+
+        if (data.success === true) {
+            successStreak++;
+            if (successStreak >= RECOVERY_STREAK && allowedConcurrency < concurrency) {
+                allowedConcurrency++;
+                successStreak = 0;
+            }
         }
 
         return { texts: data.translated_texts, ok: data.success === true, status: data.status };
