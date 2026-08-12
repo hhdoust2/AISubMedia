@@ -145,6 +145,13 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // همون دیوار می‌خوردن و در نهایت maxRetries تموم می‌شد بدون موفقیت.
     let cooldownUntil = 0;
 
+    // اگه محدودیت «توکن در دقیقه» (نه فقط تعداد درخواست) باشه، صرفاً صبرکردن
+    // بعد از ۴۲۹ کافی نیست: با همون همزمانی قبلی (مثلاً ۳ درخواست هم‌زمان)
+    // دوباره فوری بودجهٔ تازه‌شارژشده رو پر می‌کنیم و دوباره ۴۲۹ می‌خوریم. برای
+    // همین بعد از اولین برخورد به rate limit، همزمانی رو برای بقیهٔ کار کم
+    // می‌کنیم (فقط کاهش، هیچ‌وقت افزایش — تا کار به‌تدریج آروم‌تر و پایدارتر بشه).
+    let allowedConcurrency = concurrency;
+
     async function waitForCooldown() {
         const now = Date.now();
         if (now < cooldownUntil) {
@@ -185,6 +192,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 // این کول‌داون فقط مختص این دسته نیست؛ همه‌ی worker ها باید
                 // تا این لحظه صبر کنن، وگرنه دوباره به همین محدودیت می‌خورن.
                 cooldownUntil = Math.max(cooldownUntil, Date.now() + waitMs);
+                // همزمانی رو یه پله کم می‌کنیم تا بعد از پایان کول‌داون، دوباره
+                // فوری با همون فشار قبلی بودجهٔ تازه‌شارژشده رو پر نکنیم.
+                allowedConcurrency = Math.max(1, allowedConcurrency - 1);
             }
 
             await sleep(waitMs);
@@ -195,12 +205,51 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             throw new Error(data.details || data.error || 'پاسخ نامعتبر از سرور ترجمه.');
         }
 
-        return { texts: data.translated_texts, ok: data.success === true };
+        return { texts: data.translated_texts, ok: data.success === true, status: data.status };
     }
 
-    async function worker() {
+    // اگه یه دسته حتی بعد از retryهای داخلی خودش (rate_limited/server_error/
+    // parse_error) هم شکست خورد، ممکنه دلیلش خروجی بدشکل JSON یا رد شدن
+    // درخواست باشه که با تکرار همون ورودی درست نمی‌شه. به‌جای از دست‌دادن کل
+    // دسته، آن را دو نیم می‌کنیم و هر نیمه را با یک درخواست کاملاً تازه امتحان
+    // می‌کنیم — دسته‌های کوچک‌تر (کلید کمتر در JSON) خیلی کمتر مدل رو گیج
+    // می‌کنن. در بدترین حالت به تک‌خط می‌رسه و همون خط ناموفق می‌مونه.
+    async function translateBatchWithSplit(batchTexts) {
+        let r;
+        try {
+            r = await translateOneBatch(batchTexts);
+        } catch (err) {
+            console.error('خطای غیرمنتظره در ترجمه دسته:', err);
+            r = { texts: batchTexts, ok: false };
+        }
+
+        if (r.ok || batchTexts.length <= 1) {
+            if (!r.ok) {
+                console.warn(`ترجمه ناموفق (${batchTexts.length} خط) — status: ${r.status || 'نامشخص'}`, batchTexts);
+                failedBatches++;
+            }
+            return r.texts;
+        }
+
+        console.warn(`دسته با ${batchTexts.length} خط شکست خورد (status: ${r.status || 'نامشخص'})، به دو نیم تقسیم می‌شود...`);
+        const mid = Math.ceil(batchTexts.length / 2);
+        const [left, right] = await Promise.all([
+            translateBatchWithSplit(batchTexts.slice(0, mid)),
+            translateBatchWithSplit(batchTexts.slice(mid)),
+        ]);
+        return left.concat(right);
+    }
+
+    async function worker(workerId) {
         let first = true;
         while (nextIndex < batches.length) {
+            // اگه به‌خاطر rate limit همزمانی کم شده و این worker دیگه مجاز نیست
+            // کار جدید بگیره، منتظر می‌مونه (بدون فرستادن درخواست) تا کار تموم بشه.
+            while (workerId >= allowedConcurrency && nextIndex < batches.length) {
+                await sleep(500);
+            }
+            if (nextIndex >= batches.length) break;
+
             if (!first) {
                 await sleep(isFreeModel ? 600 : 150);
             }
@@ -208,11 +257,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
             const myIndex = nextIndex++;
             try {
-                const r = await translateOneBatch(batches[myIndex]);
-                results[myIndex] = r.texts;
-                if (!r.ok) failedBatches++;
+                results[myIndex] = await translateBatchWithSplit(batches[myIndex]);
             } catch (err) {
-                console.error(`ترجمه دسته ${myIndex + 1} شکست خورد:`, err);
+                console.error(`ترجمه دسته ${myIndex + 1} کاملاً شکست خورد:`, err);
                 results[myIndex] = batches[myIndex];
                 failedBatches++;
             }
@@ -222,14 +269,14 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 els,
                 percent,
                 failedBatches > 0
-                    ? `ترجمه شد: ${completed} از ${batches.length} دسته (⚠️ ${failedBatches} دسته ناموفق)...`
+                    ? `ترجمه شد: ${completed} از ${batches.length} دسته (⚠️ ${failedBatches} خط/بخش ناموفق)...`
                     : `ترجمه شد: ${completed} از ${batches.length} دسته...`
             );
         }
     }
 
     const workerCount = Math.min(concurrency, batches.length) || 1;
-    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    await Promise.all(Array.from({ length: workerCount }, (_, i) => worker(i)));
 
     const translatedTexts = results.flat();
     const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: translatedTexts[i] || b.text }));
@@ -239,7 +286,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         els,
         undefined,
         failedBatches > 0
-            ? `تکمیل شد، اما ⚠️ ${failedBatches} از ${batches.length} دسته ترجمه نشدند (متن اصلی جایگزین شده).`
+            ? `تکمیل شد، اما ⚠️ ${failedBatches} خط/بخش (از مجموع ${batches.length} دسته) ترجمه نشدند (متن اصلی جایگزین شده).`
             : 'ترجمه با موفقیت انجام شد! 🎉'
     );
 
