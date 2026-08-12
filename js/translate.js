@@ -157,6 +157,29 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     let successStreak = 0;
     const RECOVERY_STREAK = 6; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی رو زیاد کن
 
+    // محدودکنندهٔ نرخ واقعی: تضمین می‌کند بین شروع هر دو درخواست متوالی به این
+    // پروایدر (روی همهٔ worker ها با هم) حداقل این‌قدر فاصله باشد — صرف‌نظر از
+    // اینکه قبلاً ۴۲۹ خورده باشیم یا نه. برخی پروایدرها (خصوصاً پلن‌های رایگان/
+    // آزمایشی، مثل بعضی پلن‌های Mistral) سقفی به‌سختی ۱ درخواست در ثانیه دارند؛
+    // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
+    // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
+    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
+    let minRequestIntervalMs = baseMinRequestIntervalMs;
+    const maxMinRequestIntervalMs = 6000;
+    let nextSlotTime = 0;
+    let slotChain = Promise.resolve();
+
+    function reserveRequestSlot() {
+        const scheduled = slotChain.then(async () => {
+            const now = Date.now();
+            const wait = Math.max(0, nextSlotTime - now);
+            if (wait > 0) await sleep(wait);
+            nextSlotTime = Math.max(now, nextSlotTime) + minRequestIntervalMs;
+        });
+        slotChain = scheduled;
+        return scheduled;
+    }
+
     async function waitForCooldown() {
         const now = Date.now();
         if (now < cooldownUntil) {
@@ -165,6 +188,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     }
 
     async function translateOneBatch(batchTexts, attempt = 0) {
+        await reserveRequestSlot();
         await waitForCooldown();
 
         const res = await fetchWithTimeout('/translate-ai', {
@@ -200,6 +224,10 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 // همزمانی رو یه پله کم می‌کنیم تا بعد از پایان کول‌داون، دوباره
                 // فوری با همون فشار قبلی بودجهٔ تازه‌شارژشده رو پر نکنیم.
                 allowedConcurrency = Math.max(1, allowedConcurrency - 1);
+                // فاصلهٔ حداقلی بین درخواست‌ها رو هم بیشتر می‌کنیم — چون خیلی
+                // از این محدودیت‌ها واقعاً «X درخواست در ثانیه»ست، نه فقط
+                // «X درخواست در دقیقه»، و concurrency به‌تنهایی این رو حل نمی‌کنه.
+                minRequestIntervalMs = Math.min(minRequestIntervalMs * 1.6, maxMinRequestIntervalMs);
                 successStreak = 0;
             }
 
@@ -213,8 +241,13 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
         if (data.success === true) {
             successStreak++;
-            if (successStreak >= RECOVERY_STREAK && allowedConcurrency < concurrency) {
-                allowedConcurrency++;
+            if (successStreak >= RECOVERY_STREAK) {
+                if (allowedConcurrency < concurrency) {
+                    allowedConcurrency++;
+                }
+                if (minRequestIntervalMs > baseMinRequestIntervalMs) {
+                    minRequestIntervalMs = Math.max(baseMinRequestIntervalMs, minRequestIntervalMs / 1.4);
+                }
                 successStreak = 0;
             }
         }
