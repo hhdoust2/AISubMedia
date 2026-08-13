@@ -155,7 +155,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // می‌کرد (دقیقاً مشکلی که با میسترال دیدی).
     let allowedConcurrency = concurrency;
     let successStreak = 0;
-    const RECOVERY_STREAK = 6; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی رو زیاد کن
+    const RECOVERY_STREAK = 4; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی/فاصله رو بهتر کن
 
     // محدودکنندهٔ نرخ واقعی: تضمین می‌کند بین شروع هر دو درخواست متوالی به این
     // پروایدر (روی همهٔ worker ها با هم) حداقل این‌قدر فاصله باشد — صرف‌نظر از
@@ -163,13 +163,10 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // آزمایشی، مثل بعضی پلن‌های Mistral) سقفی به‌سختی ۱ درخواست در ثانیه دارند؛
     // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
     // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
-    //
-    // نکته: این فاصله عمداً ثابته و رشد نمی‌کنه — چون رشد تطبیقی‌اش با کول‌داون
-    // مشترک و کاهش همزمانی (که همین‌جا پایین‌تر هستن) روی هم انباشته می‌شد و
-    // باعث می‌شد بعد از چندتا rate_limited، هر retry هم مجبور بشه چند ثانیه
-    // برای «نوبت» صف صبر کنه، در حالی که کول‌داون/همزمانی به‌تنهایی برای تطبیق
-    // با محدودیت واقعی کافی‌ان.
-    const minRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
+    // تطبیقی هم هست: با هر rate_limited بیشتر می‌شه، با موفقیت‌های پایدار کم می‌شه.
+    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
+    let minRequestIntervalMs = baseMinRequestIntervalMs;
+    const maxMinRequestIntervalMs = 3500;
     let nextSlotTime = 0;
     let slotChain = Promise.resolve();
 
@@ -251,7 +248,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                     allowedConcurrency++;
                 }
                 if (minRequestIntervalMs > baseMinRequestIntervalMs) {
-                    minRequestIntervalMs = Math.max(baseMinRequestIntervalMs, minRequestIntervalMs / 1.4);
+                    minRequestIntervalMs = Math.max(baseMinRequestIntervalMs, minRequestIntervalMs / 1.6);
                 }
                 successStreak = 0;
             }
