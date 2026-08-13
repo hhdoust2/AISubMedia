@@ -163,9 +163,13 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // آزمایشی، مثل بعضی پلن‌های Mistral) سقفی به‌سختی ۱ درخواست در ثانیه دارند؛
     // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
     // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
-    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
-    let minRequestIntervalMs = baseMinRequestIntervalMs;
-    const maxMinRequestIntervalMs = 6000;
+    //
+    // نکته: این فاصله عمداً ثابته و رشد نمی‌کنه — چون رشد تطبیقی‌اش با کول‌داون
+    // مشترک و کاهش همزمانی (که همین‌جا پایین‌تر هستن) روی هم انباشته می‌شد و
+    // باعث می‌شد بعد از چندتا rate_limited، هر retry هم مجبور بشه چند ثانیه
+    // برای «نوبت» صف صبر کنه، در حالی که کول‌داون/همزمانی به‌تنهایی برای تطبیق
+    // با محدودیت واقعی کافی‌ان.
+    const minRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
     let nextSlotTime = 0;
     let slotChain = Promise.resolve();
 
@@ -218,6 +222,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 : Math.min(1500 * Math.pow(1.8, attempt), 20000);
 
             if (data.status === 'rate_limited') {
+                console.warn(`۴۲۹ از پروایدر — Retry-After: ${data.retry_after ?? 'ست نشده (از backoff پیش‌فرض استفاده می‌شه)'} ثانیه، پس ${(waitMs / 1000).toFixed(1)} ثانیه صبر می‌کنیم...`);
                 // این کول‌داون فقط مختص این دسته نیست؛ همه‌ی worker ها باید
                 // تا این لحظه صبر کنن، وگرنه دوباره به همین محدودیت می‌خورن.
                 cooldownUntil = Math.max(cooldownUntil, Date.now() + waitMs);
