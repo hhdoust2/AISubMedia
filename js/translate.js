@@ -157,15 +157,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     let successStreak = 0;
     const RECOVERY_STREAK = 4; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی/فاصله رو بهتر کن
 
-    // کاوش دوره‌ای: بازیابی تدریجی بالا فقط یه پله‌یه‌پله جلو می‌ره و ممکنه هیچ‌وقت
-    // به سرعت کامل نرسه، حتی اگه محدودیت پروایدر موقتی بوده و الان برطرف شده
-    // باشه. برای همین، بعد از یه دورهٔ طولانی‌تر پایداری کامل (بدون هیچ ۴۲۹ای)،
-    // یه‌بار مستقیم می‌ریم سراغ سرعت کامل (سقف اولیه) تا ببینیم واقعاً هنوز
-    // محدودیت هست یا نه — اگه بازم خوردیم، همون منطق معمولی فوراً دوباره
-    // محتاطش می‌کنه، پس هزینهٔ این آزمایش فقط یه دستهٔ احتمالاً‌ناموفقه.
-    let sinceLastLimitCount = 0;
-    const EXPLORATION_THRESHOLD = 20;
-
     // محدودکنندهٔ نرخ واقعی: تضمین می‌کند بین شروع هر دو درخواست متوالی به این
     // پروایدر (روی همهٔ worker ها با هم) حداقل این‌قدر فاصله باشد — صرف‌نظر از
     // اینکه قبلاً ۴۲۹ خورده باشیم یا نه. برخی پروایدرها (خصوصاً پلن‌های رایگان/
@@ -240,7 +231,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 // «X درخواست در دقیقه»، و concurrency به‌تنهایی این رو حل نمی‌کنه.
                 minRequestIntervalMs = Math.min(minRequestIntervalMs * 1.6, maxMinRequestIntervalMs);
                 successStreak = 0;
-                sinceLastLimitCount = 0;
             }
 
             await sleep(waitMs);
@@ -253,20 +243,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
         if (data.success === true) {
             successStreak++;
-            sinceLastLimitCount++;
-
-            if (sinceLastLimitCount >= EXPLORATION_THRESHOLD &&
-                (allowedConcurrency < concurrency || minRequestIntervalMs > baseMinRequestIntervalMs)) {
-                // یه دورهٔ طولانی کاملاً بدون rate_limited پشت‌سر گذاشتیم؛ به‌جای
-                // ادامهٔ بازیابی پله‌پله، یه‌بار مستقیم می‌ریم رو سرعت کامل تا
-                // ببینیم محدودیت واقعاً هنوز برقراره یا نه. اگه بازم خوردیم،
-                // بلوک بالا (rate_limited) فوراً دوباره محتاطش می‌کنه.
-                console.warn('پایداری طولانی بدون rate_limited — امتحان سرعت کامل...');
-                allowedConcurrency = concurrency;
-                minRequestIntervalMs = baseMinRequestIntervalMs;
-                sinceLastLimitCount = 0;
-                successStreak = 0;
-            } else if (successStreak >= RECOVERY_STREAK) {
+            if (successStreak >= RECOVERY_STREAK) {
                 if (allowedConcurrency < concurrency) {
                     allowedConcurrency++;
                 }
