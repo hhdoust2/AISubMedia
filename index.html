@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> N C مدیریت صوت و ترجمه فیلم 🎙️🤖</title>
+    <title>مدیریت صوت و ترجمه فیلم 🎙️🤖</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="card">
         <div class="card-header">
-            <h2>  مدیریت صوت و هوش مصنوعی N C 🎙️🤖</h2>
+            <h2>مدیریت صوت و هوش مصنوعی 🎙️🤖</h2>
             <div class="main-tabs">
                 <button type="button" class="main-tab-btn active" id="mainTabProcess">پردازش صوت 🎙️</button>
                 <button type="button" class="main-tab-btn" id="mainTabTranslate">ترجمه 🌐</button>
@@ -173,6 +173,11 @@
                         <input type="text" id="provName" placeholder="نام پروایدر (مثلا: Groq)">
                         <input type="text" id="provBaseUrl" placeholder="Base URL (اندپوینت)" value="https://ai-reverse.aialsabela.workers.dev/groq/openai/v1">
                         <input type="text" id="provModel" placeholder="نام مدل — چند مدل را با کاما جدا کنید (مثلا: model-a, model-b)">
+                        <input type="text" id="provMaxRps" placeholder="حداکثر Requests/Second (اختیاری، از داشبورد پروایدر) — مثلا 0.07">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 12px;">
+                            <input type="checkbox" id="provIsFree" style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>این پروایدر/مدل‌ها رایگان هستند (دسته‌های کوچک‌تر و محتاطانه‌تر برای جلوگیری از rate-limit)</span>
+                        </label>
                         <button type="button" class="btn-primary" id="saveEndpointBtn">افزودن پروایدر به لیست ➕</button>
                     </div>
                 </div>
