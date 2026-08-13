@@ -2,6 +2,25 @@
 import { convertSegmentsToSRT } from './srt.js';
 import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js';
 
+// اگر Whisper تایم‌استمپ کلمه‌به‌کلمه برگردانده باشد (data.words)، شروع هر
+// segment را روی شروع واقعی اولین کلمه‌ای که با آن هم‌پوشانی زمانی دارد تنظیم
+// می‌کنیم. این فقط شروع را دیرتر می‌برد (هیچ‌وقت زودتر)، و فقط وقتی اختلاف
+// معقول است (حداکثر ۶ ثانیه) تا در برابر خطای تطبیق کلمه محافظه‌کارانه بمانیم.
+// هدف: رفع مشکل «زیرنویس چند ثانیه زودتر از دیالوگ می‌آید» که وقتی قبل از
+// حرف‌زدن سکوت یا موسیقی هست، Whisper گاهی آن را هم جزو segment حساب می‌کند.
+function refineSegmentStarts(segments, words) {
+    if (!Array.isArray(words) || words.length === 0) return segments;
+    return segments.map((seg) => {
+        const overlapping = words.filter((w) => w.start < seg.end && w.end > seg.start);
+        if (overlapping.length === 0) return seg;
+        const tightStart = Math.min(...overlapping.map((w) => w.start));
+        if (tightStart > seg.start && tightStart - seg.start <= 6) {
+            return { ...seg, start: tightStart };
+        }
+        return seg;
+    });
+}
+
 /**
  * @param {File} file
  * @param {object} ctx - عناصر DOM و تنظیمات لازم (از ui.js تزریق می‌شود)
@@ -35,11 +54,13 @@ export function processAudioFile(file, ctx) {
     const wProvUrl = configData.providers[wProvName]?.url;
     if (!wProvUrl) { alert('پروایدر انتخاب‌شده معتبر نیست.'); return; }
 
-    let tProvUrl = '', tModel = '';
+    let tProvUrl = '', tModel = '', tProvIsFree = false, tProvMaxRps = null;
     if (isTranslate) {
         const [tProvName, modelName] = tVal.split('|');
         tProvUrl = configData.providers[tProvName]?.url;
         tModel = modelName;
+        tProvIsFree = configData.providers[tProvName]?.isFree === true;
+        tProvMaxRps = configData.providers[tProvName]?.maxRps || null;
     }
 
     progressContainer.style.display = 'block';
@@ -55,6 +76,12 @@ export function processAudioFile(file, ctx) {
     formData.append('model', wModel);
     formData.append('temperature', '0.0');
     formData.append('response_format', 'verbose_json');
+    // تایم‌استمپ سطح کلمه هم می‌خواهیم (علاوه بر سطح جمله) تا بشه شروع هر زیرنویس
+    // را روی شروع واقعی اولین کلمه تنظیم کرد، نه روی مرز تخمینی جمله که گاهی
+    // چند فریم سکوت/موسیقی قبل از دیالوگ را هم اشتباهی داخل segment حساب می‌کند.
+    // اگر پروایدر این ویژگی را پشتیبانی نکند، بی‌ضرر نادیده گرفته می‌شود.
+    formData.append('timestamp_granularities[]', 'segment');
+    formData.append('timestamp_granularities[]', 'word');
 
     const cleanBaseUrl = wProvUrl.replace(/\/$/, '');
     const audioEndpoint = cleanBaseUrl.replace(/\/chat\/completions$/, '') + '/audio/transcriptions';
@@ -92,17 +119,19 @@ export function processAudioFile(file, ctx) {
                 throw new Error('ساختار پاسخ زیرنویس معتبر نیست.');
             }
 
+            const segments = refineSegmentStarts(data.segments, data.words);
+
             let srt;
             if (isGoogleTranslate) {
-                const gResult = await translateSegmentsWithGoogle(data.segments, { state: progressState, bar: progressBar, percent: progressPercent });
+                const gResult = await translateSegmentsWithGoogle(segments, { state: progressState, bar: progressBar, percent: progressPercent });
                 srt = convertSegmentsToSRT(gResult.segments);
                 if (gResult.failedChunks > 0) {
                     translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
                 }
             } else {
-                srt = convertSegmentsToSRT(data.segments);
+                srt = convertSegmentsToSRT(segments);
                 if (isTranslate) {
-                    const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent });
+                    const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent }, { forceFree: tProvIsFree, maxRps: tProvMaxRps });
                     srt = trResult.text;
                     if (trResult.failedChunks > 0) {
                         translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شده).`;

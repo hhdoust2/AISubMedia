@@ -115,7 +115,18 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // همین اول به پرچم دستی (که کاربر موقع ثبت پروایدر در تنظیمات مشخص می‌کنه)
     // اعتماد می‌کنیم؛ اگه ست نشده بود، حداقل الگوهای رایج رو با رگ‌اکس می‌گیریم.
     const isFreeModel = options.forceFree === true || /[:/-]free\b/i.test(model || '');
-    const batchSize = options.batchSize || (isFreeModel ? 15 : 25);
+
+    // اگه کاربر عدد واقعی RPS (Requests Per Second) پروایدر رو از داشبورد خودش
+    // وارد کرده باشه، دیگه لازم نیست حدس بزنیم — دقیقاً همون فاصله رو رعایت
+    // می‌کنیم. وقتی RPS واقعی خیلی پایینه (مثلاً 0.07 = یک درخواست هر ۱۴ ثانیه)،
+    // چون هزینهٔ هر درخواست ثابته (صرف‌نظر از حجمش)، دسته‌های بزرگ‌تر بفرستیم تا
+    // تعداد کل درخواست‌ها (و درنتیجه زمان کل) کمتر بشه.
+    const knownRps = options.maxRps || null;
+    const batchSize = options.batchSize || (
+        knownRps && knownRps < 0.2 ? 100 :
+        knownRps && knownRps < 0.5 ? 50 :
+        isFreeModel ? 15 : 25
+    );
     const concurrency = options.concurrency || (isFreeModel ? 1 : 3);
 
     const blocks = parseSrtBlocks(srtText);
@@ -164,9 +175,11 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
     // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
     // تطبیقی هم هست: با هر rate_limited بیشتر می‌شه، با موفقیت‌های پایدار کم می‌شه.
-    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (isFreeModel ? 1300 : 500);
+    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (
+        knownRps ? Math.ceil(1000 / knownRps) : (isFreeModel ? 1300 : 500)
+    );
     let minRequestIntervalMs = baseMinRequestIntervalMs;
-    const maxMinRequestIntervalMs = 3500;
+    const maxMinRequestIntervalMs = Math.max(3500, baseMinRequestIntervalMs * 2);
     let nextSlotTime = 0;
     let slotChain = Promise.resolve();
 

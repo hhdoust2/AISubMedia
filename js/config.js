@@ -69,7 +69,7 @@ export function findExistingProviderKey(name) {
     );
 }
 
-export function addProvider(rawName, baseUrl, modelsCsv) {
+export function addProvider(rawName, baseUrl, modelsCsv, isFree = false, maxRps = null) {
     const name = rawName.trim();
     const url = baseUrl.trim();
     const modelList = modelsCsv.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
@@ -88,7 +88,7 @@ export function addProvider(rawName, baseUrl, modelsCsv) {
     }
 
     if (!configData.providers[key]) {
-        configData.providers[key] = { name, url, models: [] };
+        configData.providers[key] = { name, url, models: [], isFree: false };
     }
     modelList.forEach((model) => {
         if (!configData.providers[key].models.includes(model)) {
@@ -97,6 +97,14 @@ export function addProvider(rawName, baseUrl, modelsCsv) {
     });
     configData.providers[key].url = url;
     configData.providers[key].name = configData.providers[key].name || name;
+    // اگر همین الان با تیک "رایگان" اضافه شده، پروایدر رایگان علامت بخوره؛
+    // اگر پروایدر از قبل بود و این‌بار تیک نخورده بود، وضعیت قبلی‌اش را خراب نمی‌کنیم.
+    if (isFree) {
+        configData.providers[key].isFree = true;
+    }
+    if (maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0) {
+        configData.providers[key].maxRps = parseFloat(maxRps);
+    }
     saveConfig();
 
     return { key, addedCount: modelList.length, providerName: configData.providers[key].name };
