@@ -233,7 +233,12 @@ select option{ color:#111 }
   .backup-group .backup-btn{ flex:1 1 calc(50% - 8px); min-width:120px; width:auto; }
 
   /* Make download buttons visually separated */
-  .download-btn{ margin-top:10px }
+  .download-btn{ margin-top:10px; display:block !important; position:relative; z-index:2 }
+
+  /* Add extra space under progress and output so download button doesn't overlap */
+  .progress-container{ margin-bottom:14px }
+  #output{ margin-top:12px; margin-bottom:12px }
+  .scrollable-content{ padding-bottom:18px }
 }
 
 /* DESKTOP: two-column layout with sidebar for tabs */
