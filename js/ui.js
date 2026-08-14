@@ -192,7 +192,6 @@ export function initApp() {
         const configData = getConfig();
         const pKey = srtProviderSelect.value;
         const prov = configData.providers[pKey];
-        // اصلاح‌شده: استخراج name از آبجکت مدل
         const items = prov && prov.models ? prov.models.map((m) => ({ value: m.name, label: m.name })) : [];
         fillSelectOptions(srtModelSelect, prov ? '-- انتخاب مدل --' : '-- ابتدا پروایدر را انتخاب کنید --', items);
     }
@@ -349,12 +348,34 @@ export function initApp() {
     });
 
     function runProcessAudio(file) {
+        const configData = getConfig();
+
+        // استخراج مجهز به maxRps مدل ویس
+        const whisperVal = assignWhisperSelect.value;
+        let whisperMaxRps = null;
+        if (whisperVal && whisperVal.includes('|')) {
+            const [pKey, mName] = whisperVal.split('|');
+            const foundModel = configData.providers[pKey]?.models?.find(m => m.name === mName);
+            if (foundModel) whisperMaxRps = foundModel.maxRps;
+        }
+
+        // استخراج مجهز به maxRps مدل ترجمه صوت
+        const translateVal = assignTranslateSelect.value;
+        let translateMaxRps = null;
+        if (translateVal && translateVal.includes('|')) {
+            const [pKey, mName] = translateVal.split('|');
+            const foundModel = configData.providers[pKey]?.models?.find(m => m.name === mName);
+            if (foundModel) translateMaxRps = foundModel.maxRps;
+        }
+
         processAudioFile(file, {
-            configData: getConfig(),
+            configData: configData,
             assignWhisperSelect, assignTranslateSelect, keyWhisperSelect, keyTranslateSelect,
             googleTranslateCheckbox, aiTranslateCheckbox,
             progressContainer, progressBar, progressPercent, progressState,
             output, loader, submitBtn, downloadBtn,
+            whisperMaxRps,
+            translateMaxRps,
             onDone: (srt) => { srtContent = srt; },
         });
     }
@@ -385,7 +406,6 @@ export function initApp() {
             if (!tModel) { alert('لطفاً مدل ترجمه را انتخاب کنید.'); return; }
             if (!tKey) { alert('لطفاً کلید API را انتخاب کنید.'); return; }
             tProvUrl = configData.providers[pKey]?.url;
-            // استخراج maxRps مختص به همان مدل انتخابی
             const foundModel = configData.providers[pKey]?.models?.find(m => m.name === tModel);
             tProvMaxRps = foundModel ? foundModel.maxRps : null;
         }
