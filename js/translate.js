@@ -109,25 +109,24 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // پروایدر) تا مشکل CORS نداشته باشیم. فایل را یک‌جا به سرور نمی‌فرستیم؛
     // به دسته‌های کوچک تقسیم و هر دسته را جدا می‌فرستیم، وگرنه از سقف زمان
     // اجرای توابع سرورلس رد می‌شویم.
-    // تشخیص «مدل رایگان» صرفاً از روی اسم قابل‌اعتماد نیست: بعضی پروایدرها به‌جای
-    // "model:free" از "vendor/free" یا "auto-free" استفاده می‌کنن، و بعضی مدل‌های
-    // واقعاً رایگان (مثل مدل‌های Groq) اصلاً کلمه‌ی free توی اسمشون نیست. برای
-    // همین اول به پرچم دستی (که کاربر موقع ثبت پروایدر در تنظیمات مشخص می‌کنه)
-    // اعتماد می‌کنیم؛ اگه ست نشده بود، حداقل الگوهای رایج رو با رگ‌اکس می‌گیریم.
-    const isFreeModel = options.forceFree === true || /[:/-]free\b/i.test(model || '');
-
-    // اگه کاربر عدد واقعی RPS (Requests Per Second) پروایدر رو از داشبورد خودش
-    // وارد کرده باشه، دیگه لازم نیست حدس بزنیم — دقیقاً همون فاصله رو رعایت
-    // می‌کنیم. وقتی RPS واقعی خیلی پایینه (مثلاً 0.07 = یک درخواست هر ۱۴ ثانیه)،
-    // چون هزینهٔ هر درخواست ثابته (صرف‌نظر از حجمش)، دسته‌های بزرگ‌تر بفرستیم تا
-    // تعداد کل درخواست‌ها (و درنتیجه زمان کل) کمتر بشه.
+    //
+    // تشخیص «رایگان/غیررایگان» حذف شد چون معیار مفیدی نبود — هر پروایدر برای
+    // هر مدل خودش یه سقف RPS/RPM مشخص داره (چه رایگان چه پولی)، و تنها چیزی
+    // که واقعاً مهمه همون عدد RPSه که کاربر از داشبورد پروایدر برمی‌داره و در
+    // تنظیمات (بخش «محدودیت نرخ هر مدل») ثبت می‌کنه.
+    //
+    // اگه این عدد داده شده باشه، دیگه لازم نیست حدس بزنیم — دقیقاً همون فاصله
+    // رو رعایت می‌کنیم. وقتی RPS واقعی خیلی پایینه (مثلاً 0.07 = یک درخواست
+    // هر ۱۴ ثانیه)، چون هزینهٔ هر درخواست ثابته (صرف‌نظر از حجمش)، دسته‌های
+    // بزرگ‌تر بفرستیم تا تعداد کل درخواست‌ها (و درنتیجه زمان کل) کمتر بشه.
     const knownRps = options.maxRps || null;
+    console.log(`[translateSrtWithAI] model="${model}" | options.maxRps=${options.maxRps} | knownRps=${knownRps}`);
     const batchSize = options.batchSize || (
         knownRps && knownRps < 0.2 ? 100 :
         knownRps && knownRps < 0.5 ? 50 :
-        isFreeModel ? 15 : 25
+        25
     );
-    const concurrency = options.concurrency || (isFreeModel ? 1 : 3);
+    const concurrency = options.concurrency || 3;
 
     const blocks = parseSrtBlocks(srtText);
     if (blocks.length === 0) {
@@ -145,9 +144,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     let failedBatches = 0;
     let nextIndex = 0;
 
-    setProgress(els, 0, `در حال ترجمه ${batches.length} دسته با هوش مصنوعی${isFreeModel ? ' (مدل رایگان — محتاطانه‌تر)' : ''}...`);
+    setProgress(els, 0, `در حال ترجمه ${batches.length} دسته با هوش مصنوعی...`);
 
-    const maxRetries = isFreeModel ? 5 : 3;
+    const maxRetries = 4;
 
     // کول‌داون مشترک بین همه‌ی worker ها: وقتی هر دسته‌ای به rate_limited برخورد
     // می‌کند، این محدودیت مختص همون یک دسته نیست، مختص کل پروایدره. بدون این
@@ -162,21 +161,18 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // همین بعد از اولین برخورد به rate limit، همزمانی رو یه پله کم می‌کنیم.
     // ولی این نباید برای همیشه بمونه: اگه بعد از اون چندتا دسته پشت‌سرهم بدون
     // مشکل موفق بشن (یعنی محدودیت رد شده)، دوباره کم‌کم همزمانی رو بالا می‌بریم
-    // — وگرنه یه محدودیت لحظه‌ای اول فایل، کل بقیهٔ فایل رو تک‌به‌تک و کند
-    // می‌کرد (دقیقاً مشکلی که با میسترال دیدی).
+    // — وگرنه یه محدودیت لحظه‌ای اول فایل، کل بقیهٔ فایل رو تک‌به‌تک و کند می‌کرد.
     let allowedConcurrency = concurrency;
     let successStreak = 0;
     const RECOVERY_STREAK = 4; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی/فاصله رو بهتر کن
 
     // محدودکنندهٔ نرخ واقعی: تضمین می‌کند بین شروع هر دو درخواست متوالی به این
     // پروایدر (روی همهٔ worker ها با هم) حداقل این‌قدر فاصله باشد — صرف‌نظر از
-    // اینکه قبلاً ۴۲۹ خورده باشیم یا نه. برخی پروایدرها (خصوصاً پلن‌های رایگان/
-    // آزمایشی، مثل بعضی پلن‌های Mistral) سقفی به‌سختی ۱ درخواست در ثانیه دارند؛
-    // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
-    // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
+    // اینکه قبلاً ۴۲۹ خورده باشیم یا نه. اگه RPS واقعی ثبت‌شده باشه، دقیقاً از
+    // همون استفاده می‌کنیم؛ وگرنه یه پیش‌فرض محافظه‌کارانه (۵۰۰ میلی‌ثانیه).
     // تطبیقی هم هست: با هر rate_limited بیشتر می‌شه، با موفقیت‌های پایدار کم می‌شه.
     const baseMinRequestIntervalMs = options.minRequestIntervalMs || (
-        knownRps ? Math.ceil(1000 / knownRps) : (isFreeModel ? 1300 : 500)
+        knownRps ? Math.ceil(1000 / knownRps) : 500
     );
     let minRequestIntervalMs = baseMinRequestIntervalMs;
     const maxMinRequestIntervalMs = Math.max(3500, baseMinRequestIntervalMs * 2);
@@ -313,7 +309,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             if (nextIndex >= batches.length) break;
 
             if (!first) {
-                await sleep(isFreeModel ? 600 : 150);
+                await sleep(150);
             }
             first = false;
 
