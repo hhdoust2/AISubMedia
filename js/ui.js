@@ -24,18 +24,58 @@ export function initApp() {
         { btn: mainTabSettings, content: tabContentSettings },
     ];
 
-    function activateMainTab(chosenBtn) {
-        mainTabMap.forEach(({ btn, content }) => {
-            const isActive = btn === chosenBtn;
-            btn.classList.toggle('active', isActive);
-            content.classList.toggle('active', isActive);
-        });
-        window.scrollTo({ top: 0, behavior: 'instant' });
+    // Robust tab activation: support missing elements and also buttons that follow the naming convention mainTabX -> tabContentX
+    function activateMainTabByIdOrBtn(identifier) {
+        // identifier can be an element or an id string
+        let activeBtn = null;
+        if (typeof identifier === 'string') activeBtn = document.getElementById(identifier);
+        else if (identifier && identifier.id) activeBtn = identifier;
+
+        // try to find content id by naming convention
+        let targetContent = null;
+        if (activeBtn && activeBtn.id) {
+            const contentId = activeBtn.id.replace(/^mainTab/, 'tabContent');
+            targetContent = document.getElementById(contentId);
+        }
+
+        // Fallback: try mapping array
+        if (!targetContent) {
+            for (const { btn, content } of mainTabMap) {
+                if (btn && activeBtn && btn.id === activeBtn.id) { targetContent = content; break; }
+            }
+        }
+
+        // Deactivate all
+        // first deactivate all known buttons and contents safely
+        const allButtons = document.querySelectorAll('.main-tab-btn');
+        allButtons.forEach(b => b.classList.remove('active'));
+        const allContents = document.querySelectorAll('.tab-content');
+        allContents.forEach(c => c.classList.remove('active'));
+
+        // Activate found ones
+        if (activeBtn) activeBtn.classList.add('active');
+        if (targetContent) targetContent.classList.add('active');
     }
 
-    mainTabProcess.addEventListener('click', () => activateMainTab(mainTabProcess));
-    mainTabTranslate.addEventListener('click', () => activateMainTab(mainTabTranslate));
-    mainTabSettings.addEventListener('click', () => activateMainTab(mainTabSettings));
+    // Attach listeners to any element with class .main-tab-btn (works for both mobile and desktop layout)
+    const tabButtons = Array.from(document.querySelectorAll('.main-tab-btn'));
+    if (tabButtons.length > 0) {
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                activateMainTabByIdOrBtn(btn);
+            });
+        });
+    } else {
+        // Fallback to previous explicit bindings if class-based buttons not found
+        if (mainTabProcess) mainTabProcess.addEventListener('click', () => activateMainTabByIdOrBtn(mainTabProcess));
+        if (mainTabTranslate) mainTabTranslate.addEventListener('click', () => activateMainTabByIdOrBtn(mainTabTranslate));
+        if (mainTabSettings) mainTabSettings.addEventListener('click', () => activateMainTabByIdOrBtn(mainTabSettings));
+    }
+
+    // Ensure a default active tab: prefer Process
+    if (document.getElementById('mainTabProcess')) activateMainTabByIdOrBtn('mainTabProcess');
+    else if (tabButtons[0]) activateMainTabByIdOrBtn(tabButtons[0]);
 
     // ---------- عناصر تب «پردازش صوت» ----------
     const fileInput = document.getElementById('file-upload');
@@ -113,48 +153,56 @@ export function initApp() {
     let currentMode = 'upload';
 
     // جلوگیری از انتخاب همزمان هر دو روش ترجمه
-    googleTranslateCheckbox.addEventListener('change', () => {
-        if (googleTranslateCheckbox.checked) aiTranslateCheckbox.checked = false;
-    });
-    aiTranslateCheckbox.addEventListener('change', () => {
-        if (aiTranslateCheckbox.checked) googleTranslateCheckbox.checked = false;
-    });
-    srtGoogleTranslateCheckbox.addEventListener('change', () => {
-        if (srtGoogleTranslateCheckbox.checked) srtAiTranslateCheckbox.checked = false;
-    });
-    srtAiTranslateCheckbox.addEventListener('change', () => {
-        if (srtAiTranslateCheckbox.checked) srtGoogleTranslateCheckbox.checked = false;
-    });
+    if (googleTranslateCheckbox && aiTranslateCheckbox) {
+        googleTranslateCheckbox.addEventListener('change', () => {
+            if (googleTranslateCheckbox.checked) aiTranslateCheckbox.checked = false;
+        });
+        aiTranslateCheckbox.addEventListener('change', () => {
+            if (aiTranslateCheckbox.checked) googleTranslateCheckbox.checked = false;
+        });
+    }
+    if (srtGoogleTranslateCheckbox && srtAiTranslateCheckbox) {
+        srtGoogleTranslateCheckbox.addEventListener('change', () => {
+            if (srtGoogleTranslateCheckbox.checked) srtAiTranslateCheckbox.checked = false;
+        });
+        srtAiTranslateCheckbox.addEventListener('change', () => {
+            if (srtAiTranslateCheckbox.checked) srtGoogleTranslateCheckbox.checked = false;
+        });
+    }
 
-    srtTabUpload.addEventListener('click', () => {
-        srtCurrentMode = 'upload';
-        srtTabUpload.classList.add('active');
-        srtTabLink.classList.remove('active');
-        srtFileInputWrapper.style.display = 'block';
-        srtLinkInputWrapper.style.display = 'none';
-    });
-    srtTabLink.addEventListener('click', () => {
-        srtCurrentMode = 'link';
-        srtTabLink.classList.add('active');
-        srtTabUpload.classList.remove('active');
-        srtFileInputWrapper.style.display = 'none';
-        srtLinkInputWrapper.style.display = 'block';
-    });
+    if (srtTabUpload && srtTabLink && srtFileInputWrapper && srtLinkInputWrapper) {
+        srtTabUpload.addEventListener('click', () => {
+            srtCurrentMode = 'upload';
+            srtTabUpload.classList.add('active');
+            srtTabLink.classList.remove('active');
+            srtFileInputWrapper.style.display = 'block';
+            srtLinkInputWrapper.style.display = 'none';
+        });
+        srtTabLink.addEventListener('click', () => {
+            srtCurrentMode = 'link';
+            srtTabLink.classList.add('active');
+            srtTabUpload.classList.remove('active');
+            srtFileInputWrapper.style.display = 'none';
+            srtLinkInputWrapper.style.display = 'block';
+        });
+    }
 
-    tabUpload.addEventListener('click', () => {
-        currentMode = 'upload';
-        tabUpload.classList.add('active');
-        tabLink.classList.remove('active');
-        fileInputWrapper.style.display = 'block';
-        linkInputWrapper.style.display = 'none';
-    });
-    tabLink.addEventListener('click', () => {
-        currentMode = 'link';
-        tabLink.classList.add('active');
-        tabUpload.classList.remove('active');
-        fileInputWrapper.style.display = 'none';
-        linkInputWrapper.style.display = 'block';
-    });
+    if (tabUpload && tabLink && fileInputWrapper && linkInputWrapper) {
+        tabUpload.addEventListener('click', () => {
+            currentMode = 'upload';
+            tabUpload.classList.add('active');
+            tabLink.classList.remove('active');
+            fileInputWrapper.style.display = 'block';
+            linkInputWrapper.style.display = 'none';
+        });
+        tabLink.addEventListener('click', () => {
+            currentMode = 'link';
+            tabLink.classList.add('active');
+            tabUpload.classList.remove('active');
+            fileInputWrapper.style.display = 'none';
+            linkInputWrapper.style.display = 'block';
+        });
+    }
 
     // ---------- به‌روزرسانی dropdown ها (بدون innerHTML خام — امن در برابر XSS) ----------
     function updateDropdowns() {
@@ -170,30 +218,30 @@ export function initApp() {
                 });
             }
         });
-        fillSelectOptions(assignWhisperSelect, '-- انتخاب پروایدر --', provItems);
-        fillSelectOptions(assignTranslateSelect, '-- انتخاب پروایدر --', provItems);
+        if (assignWhisperSelect) fillSelectOptions(assignWhisperSelect, '-- انتخاب پروایدر --', provItems);
+        if (assignTranslateSelect) fillSelectOptions(assignTranslateSelect, '-- انتخاب پروایدر --', provItems);
 
         const keyItems = (configData.api_keys || []).map((kObj) => ({ value: kObj.key, label: kObj.label }));
         const deleteKeyItems = (configData.api_keys || []).map((kObj, idx) => ({ value: String(idx), label: kObj.label }));
 
-        fillSelectOptions(keyWhisperSelect, '-- انتخاب کلید --', keyItems);
-        fillSelectOptions(keyTranslateSelect, '-- انتخاب کلید --', keyItems);
-        fillSelectOptions(keyListSelect, '-- لیست کلیدها --', deleteKeyItems);
+        if (keyWhisperSelect) fillSelectOptions(keyWhisperSelect, '-- انتخاب کلید --', keyItems);
+        if (keyTranslateSelect) fillSelectOptions(keyTranslateSelect, '-- انتخاب کلید --', keyItems);
+        if (keyListSelect) fillSelectOptions(keyListSelect, '-- لیست کلیدها --', deleteKeyItems);
 
-        if (localStorage.getItem('assigned_whisper_val')) assignWhisperSelect.value = localStorage.getItem('assigned_whisper_val');
-        if (localStorage.getItem('assigned_translate_val')) assignTranslateSelect.value = localStorage.getItem('assigned_translate_val');
-        if (localStorage.getItem('assigned_key_whisper')) keyWhisperSelect.value = localStorage.getItem('assigned_key_whisper');
-        if (localStorage.getItem('assigned_key_translate')) keyTranslateSelect.value = localStorage.getItem('assigned_key_translate');
+        if (assignWhisperSelect && localStorage.getItem('assigned_whisper_val')) assignWhisperSelect.value = localStorage.getItem('assigned_whisper_val');
+        if (assignTranslateSelect && localStorage.getItem('assigned_translate_val')) assignTranslateSelect.value = localStorage.getItem('assigned_translate_val');
+        if (keyWhisperSelect && localStorage.getItem('assigned_key_whisper')) keyWhisperSelect.value = localStorage.getItem('assigned_key_whisper');
+        if (keyTranslateSelect && localStorage.getItem('assigned_key_translate')) keyTranslateSelect.value = localStorage.getItem('assigned_key_translate');
 
         updateSrtTabDropdowns();
     }
 
     function updateSrtModelSelect() {
         const configData = getConfig();
-        const pKey = srtProviderSelect.value;
+        const pKey = srtProviderSelect ? srtProviderSelect.value : '';
         const prov = configData.providers[pKey];
         const items = prov && prov.models ? prov.models.map((m) => ({ value: m.name, label: m.name })) : [];
-        fillSelectOptions(srtModelSelect, prov ? '-- انتخاب مدل --' : '-- ابتدا پروایدر را انتخاب کنید --', items);
+        if (srtModelSelect) fillSelectOptions(srtModelSelect, prov ? '-- انتخاب مدل --' : '-- ابتدا پروایدر را انتخاب کنید --', items);
     }
 
     function updateSrtTabDropdowns() {
@@ -202,34 +250,34 @@ export function initApp() {
             value: pKey,
             label: configData.providers[pKey].name || pKey,
         }));
-        fillSelectOptions(srtProviderSelect, '-- انتخاب پروایدر --', provItems);
+        if (srtProviderSelect) fillSelectOptions(srtProviderSelect, '-- انتخاب پروایدر --', provItems);
 
         const keyItems = (configData.api_keys || []).map((kObj) => ({ value: kObj.key, label: kObj.label }));
-        fillSelectOptions(srtKeySelect, '-- انتخاب کلید --', keyItems);
+        if (srtKeySelect) fillSelectOptions(srtKeySelect, '-- انتخاب کلید --', keyItems);
 
-        if (localStorage.getItem('srt_provider_val')) srtProviderSelect.value = localStorage.getItem('srt_provider_val');
+        if (srtProviderSelect && localStorage.getItem('srt_provider_val')) srtProviderSelect.value = localStorage.getItem('srt_provider_val');
         updateSrtModelSelect();
-        if (localStorage.getItem('srt_model_val')) srtModelSelect.value = localStorage.getItem('srt_model_val');
-        if (localStorage.getItem('srt_key_val')) srtKeySelect.value = localStorage.getItem('srt_key_val');
+        if (srtModelSelect && localStorage.getItem('srt_model_val')) srtModelSelect.value = localStorage.getItem('srt_model_val');
+        if (srtKeySelect && localStorage.getItem('srt_key_val')) srtKeySelect.value = localStorage.getItem('srt_key_val');
     }
 
-    srtProviderSelect.addEventListener('change', () => {
+    if (srtProviderSelect) srtProviderSelect.addEventListener('change', () => {
         updateSrtModelSelect();
         localStorage.setItem('srt_provider_val', srtProviderSelect.value);
         localStorage.removeItem('srt_model_val');
     });
-    srtModelSelect.addEventListener('change', () => localStorage.setItem('srt_model_val', srtModelSelect.value));
-    srtKeySelect.addEventListener('change', () => localStorage.setItem('srt_key_val', srtKeySelect.value));
+    if (srtModelSelect) srtModelSelect.addEventListener('change', () => localStorage.setItem('srt_model_val', srtModelSelect.value));
+    if (srtKeySelect) srtKeySelect.addEventListener('change', () => localStorage.setItem('srt_key_val', srtKeySelect.value));
 
-    assignWhisperSelect.addEventListener('change', () => localStorage.setItem('assigned_whisper_val', assignWhisperSelect.value));
-    assignTranslateSelect.addEventListener('change', () => localStorage.setItem('assigned_translate_val', assignTranslateSelect.value));
-    keyWhisperSelect.addEventListener('change', () => localStorage.setItem('assigned_key_whisper', keyWhisperSelect.value));
-    keyTranslateSelect.addEventListener('change', () => localStorage.setItem('assigned_key_translate', keyTranslateSelect.value));
+    if (assignWhisperSelect) assignWhisperSelect.addEventListener('change', () => localStorage.setItem('assigned_whisper_val', assignWhisperSelect.value));
+    if (assignTranslateSelect) assignTranslateSelect.addEventListener('change', () => localStorage.setItem('assigned_translate_val', assignTranslateSelect.value));
+    if (keyWhisperSelect) keyWhisperSelect.addEventListener('change', () => localStorage.setItem('assigned_key_whisper', keyWhisperSelect.value));
+    if (keyTranslateSelect) keyTranslateSelect.addEventListener('change', () => localStorage.setItem('assigned_key_translate', keyTranslateSelect.value));
 
     const provMaxRps = document.getElementById('provMaxRps');
 
     // ---------- تنظیمات: افزودن پروایدر ----------
-    saveEndpointBtn.addEventListener('click', () => {
+    if (saveEndpointBtn) saveEndpointBtn.addEventListener('click', () => {
         try {
             const result = addProvider(provName.value, provBaseUrl.value, provModel.value, provMaxRps.value);
             provName.value = '';
@@ -247,7 +295,7 @@ export function initApp() {
         }
     });
 
-    saveKeyBtn.addEventListener('click', () => {
+    if (saveKeyBtn) saveKeyBtn.addEventListener('click', () => {
         try {
             addApiKey(keyLabelInput.value, keyValueInput.value);
             keyLabelInput.value = '';
@@ -259,8 +307,8 @@ export function initApp() {
         }
     });
 
-    deleteKeyBtn.addEventListener('click', () => {
-        const idx = keyListSelect.value;
+    if (deleteKeyBtn) deleteKeyBtn.addEventListener('click', () => {
+        const idx = keyListSelect ? keyListSelect.value : '';
         if (idx === '') {
             alert('لطفاً یک کلید را برای حذف انتخاب کنید.');
             return;
@@ -272,13 +320,13 @@ export function initApp() {
         }
     });
 
-    exportBtn.addEventListener('click', () => {
+    if (exportBtn) exportBtn.addEventListener('click', () => {
         const exportObj = exportConfig();
         downloadTextFile(JSON.stringify(exportObj, null, 2), 'ai_config_backup.json');
     });
 
-    importBtn.addEventListener('click', () => importFile.click());
-    importFile.addEventListener('change', (e) => {
+    if (importBtn) importBtn.addEventListener('click', () => importFile.click());
+    if (importFile) importFile.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
@@ -296,52 +344,52 @@ export function initApp() {
     });
 
     // ---------- انتخاب فایل ----------
-    fileInput.addEventListener('change', function () {
+    if (fileInput) fileInput.addEventListener('change', function () {
         if (this.files && this.files[0]) {
             const file = this.files[0];
             const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
-            fileLabel.textContent = `${file.name} (${sizeMb} MB)`;
+            if (fileLabel) fileLabel.textContent = `${file.name} (${sizeMb} MB)`;
             outputFileName = baseFileName(file.name);
 
             if (file.size > 25 * 1024 * 1024) {
-                warningBox.style.display = 'block';
-                submitBtn.disabled = true;
+                if (warningBox) warningBox.style.display = 'block';
+                if (submitBtn) submitBtn.disabled = true;
             } else {
-                warningBox.style.display = 'none';
-                submitBtn.disabled = false;
+                if (warningBox) warningBox.style.display = 'none';
+                if (submitBtn) submitBtn.disabled = false;
             }
         }
     });
 
-    srtFileInput.addEventListener('change', function () {
+    if (srtFileInput) srtFileInput.addEventListener('change', function () {
         if (this.files && this.files[0]) {
             const file = this.files[0];
             const sizeKb = (file.size / 1024).toFixed(1);
-            srtFileLabel.textContent = `${file.name} (${sizeKb} KB)`;
+            if (srtFileLabel) srtFileLabel.textContent = `${file.name} (${sizeKb} KB)`;
             srtTranslatedFileName = baseFileName(file.name) + '_fa';
         }
     });
 
     // ---------- فرم پردازش صوت ----------
-    form.addEventListener('submit', async function (e) {
+    if (form) form.addEventListener('submit', async function (e) {
         e.preventDefault();
         if (currentMode === 'upload') {
-            const file = fileInput.files[0];
+            const file = fileInput ? fileInput.files[0] : null;
             if (!file) return;
             runProcessAudio(file);
         } else {
-            const url = audioUrlInput.value.trim();
+            const url = audioUrlInput ? audioUrlInput.value.trim() : '';
             if (!url) return;
-            progressContainer.style.display = 'block';
-            progressState.innerText = 'در حال دانلود فایل از لینک...';
-            submitBtn.disabled = true;
+            if (progressContainer) progressContainer.style.display = 'block';
+            if (progressState) progressState.innerText = 'در حال دانلود فایل از لینک...';
+            if (submitBtn) submitBtn.disabled = true;
             try {
                 const res = await fetch(url);
                 const blob = await res.blob();
                 const file = new File([blob], 'audio.mp3', { type: blob.type });
                 runProcessAudio(file);
             } catch (err) {
-                submitBtn.disabled = false;
+                if (submitBtn) submitBtn.disabled = false;
                 alert('خطا در دریافت لینک صوتی');
             }
         }
@@ -351,7 +399,7 @@ export function initApp() {
         const configData = getConfig();
 
         // استخراج maxRps مدل ویس (Whisper)
-        const whisperVal = assignWhisperSelect.value;
+        const whisperVal = assignWhisperSelect ? assignWhisperSelect.value : '';
         let whisperMaxRps = null;
         if (whisperVal && whisperVal.includes('|')) {
             const [pKey, mName] = whisperVal.split('|');
@@ -360,7 +408,7 @@ export function initApp() {
         }
 
         // استخراج maxRps و URL مدل ترجمه در تب پردازش صوت
-        const translateVal = assignTranslateSelect.value;
+        const translateVal = assignTranslateSelect ? assignTranslateSelect.value : '';
         let translateMaxRps = null;
         let translateProvUrl = null;
         let translateModelName = null;
@@ -388,15 +436,15 @@ export function initApp() {
     }
 
 
-    downloadBtn.addEventListener('click', () => {
+    if (downloadBtn) downloadBtn.addEventListener('click', () => {
         if (!srtContent) return;
         downloadTextFile(srtContent, `${outputFileName}.srt`);
     });
 
     // ---------- تب ترجمه فایل SRT ----------
     async function processSrtFile(file) {
-        const isGoogleTranslate = srtGoogleTranslateCheckbox.checked;
-        const isAiTranslate = srtAiTranslateCheckbox.checked;
+        const isGoogleTranslate = srtGoogleTranslateCheckbox ? srtGoogleTranslateCheckbox.checked : false;
+        const isAiTranslate = srtAiTranslateCheckbox ? srtAiTranslateCheckbox.checked : false;
         let srtTranslateWarningMsg = null;
 
         if (!isGoogleTranslate && !isAiTranslate) {
@@ -407,9 +455,9 @@ export function initApp() {
         const configData = getConfig();
         let tProvUrl = '', tModel = '', tKey = '', tProvMaxRps = null;
         if (isAiTranslate) {
-            const pKey = srtProviderSelect.value;
-            tModel = srtModelSelect.value;
-            tKey = srtKeySelect.value;
+            const pKey = srtProviderSelect ? srtProviderSelect.value : '';
+            tModel = srtModelSelect ? srtModelSelect.value : '';
+            tKey = srtKeySelect ? srtKeySelect.value : '';
             if (!pKey) { alert('لطفاً پروایدر ترجمه را انتخاب کنید.'); return; }
             if (!tModel) { alert('لطفاً مدل ترجمه را انتخاب کنید.'); return; }
             if (!tKey) { alert('لطفاً کلید API را انتخاب کنید.'); return; }
@@ -420,14 +468,14 @@ export function initApp() {
 
         const srtEls = { state: srtProgressState, bar: srtProgressBar, percent: srtProgressPercent };
 
-        srtProgressContainer.style.display = 'block';
-        srtProgressBar.style.width = '0%';
-        srtProgressPercent.innerText = '0%';
-        srtProgressState.innerText = 'در حال خواندن فایل زیرنویس...';
-        srtOutput.style.display = 'none';
-        srtDownloadBtn.style.display = 'none';
-        srtSubmitBtn.disabled = true;
-        srtLoader.style.display = 'block';
+        if (srtProgressContainer) srtProgressContainer.style.display = 'block';
+        if (srtProgressBar) srtProgressBar.style.width = '0%';
+        if (srtProgressPercent) srtProgressPercent.innerText = '0%';
+        if (srtProgressState) srtProgressState.innerText = 'در حال خواندن فایل زیرنویس...';
+        if (srtOutput) srtOutput.style.display = 'none';
+        if (srtDownloadBtn) srtDownloadBtn.style.display = 'none';
+        if (srtSubmitBtn) srtSubmitBtn.disabled = true;
+        if (srtLoader) srtLoader.style.display = 'block';
 
         try {
             const rawText = await file.text();
@@ -442,57 +490,55 @@ export function initApp() {
                 const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text }));
                 translatedSrt = buildSrtFromBlocks(translatedBlocks);
                 if (gResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در [...]
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در [...];`
                 }
             } else {
                 const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { maxRps: tProvMaxRps });
                 translatedSrt = trResult.text;
                 if (trResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین ش[...
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شد);`
                 }
             }
 
             srtTranslatedContent = translatedSrt;
-            srtOutput.innerText = srtTranslatedContent;
-            srtOutput.style.display = 'block';
-            srtOutput.style.color = '#e0e0e0';
-            srtProgressState.innerText = srtTranslateWarningMsg || 'تکمیل عملیات! 🎉';
-            srtDownloadBtn.style.display = 'block';
+            if (srtOutput) srtOutput.innerText = srtTranslatedContent;
+            if (srtOutput) srtOutput.style.display = 'block';
+            if (srtOutput) srtOutput.style.color = '#e0e0e0';
+            if (srtProgressState) srtProgressState.innerText = srtTranslateWarningMsg || 'تکمیل عملیات! 🎉';
+            if (srtDownloadBtn) srtDownloadBtn.style.display = 'block';
         } catch (err) {
-            srtOutput.style.display = 'block';
-            srtOutput.style.color = '#ef4444';
-            srtOutput.innerText = 'خطا: ' + err.message;
+            if (srtOutput) { srtOutput.style.display = 'block'; srtOutput.style.color = '#ef4444'; srtOutput.innerText = 'خطا: ' + err.message; }
         } finally {
-            srtLoader.style.display = 'none';
-            srtSubmitBtn.disabled = false;
+            if (srtLoader) srtLoader.style.display = 'none';
+            if (srtSubmitBtn) srtSubmitBtn.disabled = false;
         }
     }
 
-    srtUploadForm.addEventListener('submit', async function (e) {
+    if (srtUploadForm) srtUploadForm.addEventListener('submit', async function (e) {
         e.preventDefault();
         if (srtCurrentMode === 'upload') {
-            const file = srtFileInput.files[0];
+            const file = srtFileInput ? srtFileInput.files[0] : null;
             if (!file) { alert('لطفاً یک فایل SRT انتخاب کنید.'); return; }
             processSrtFile(file);
         } else {
-            const url = srtUrlInput.value.trim();
+            const url = srtUrlInput ? srtUrlInput.value.trim() : '';
             if (!url) { alert('لطفاً لینک فایل SRT را وارد کنید.'); return; }
-            srtProgressContainer.style.display = 'block';
-            srtProgressState.innerText = 'در حال دانلود فایل از لینک...';
-            srtSubmitBtn.disabled = true;
+            if (srtProgressContainer) srtProgressContainer.style.display = 'block';
+            if (srtProgressState) srtProgressState.innerText = 'در حال دانلود فایل از لینک...';
+            if (srtSubmitBtn) srtSubmitBtn.disabled = true;
             try {
                 const res = await fetch(url);
                 const blob = await res.blob();
                 const file = new File([blob], 'subtitle.srt', { type: blob.type || 'text/plain' });
                 processSrtFile(file);
             } catch (err) {
-                srtSubmitBtn.disabled = false;
+                if (srtSubmitBtn) srtSubmitBtn.disabled = false;
                 alert('خطا در دریافت لینک فایل زیرنویس');
             }
         }
     });
 
-    srtDownloadBtn.addEventListener('click', () => {
+    if (srtDownloadBtn) srtDownloadBtn.addEventListener('click', () => {
         if (!srtTranslatedContent) return;
         downloadTextFile(srtTranslatedContent, `${srtTranslatedFileName}.srt`);
     });
@@ -504,7 +550,7 @@ export function initApp() {
     // --- Small UI fixes to ensure consistent mobile behavior ---
     try {
         // Ensure main tab and process tab active state
-        if (mainTabProcess) activateMainTab(mainTabProcess);
+        // activateMainTabByIdOrBtn already activated default above
 
         // Default to upload mode for audio and SRT
         if (fileInputWrapper) fileInputWrapper.style.display = 'block';
