@@ -216,7 +216,7 @@ select option{ color:#111 }
   .main-tabs{ gap:6px; }
 
   /* Make primary form buttons full width on mobile for consistent layout */
-  .submit-btn, .download-btn, .btn-primary, .backup-btn{ width:100%; }
+  .submit-btn, .download-btn, .btn-primary{ width:100%; }
 
   /* Tabs: allow scrolling if labels overflow */
   .main-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -227,6 +227,13 @@ select option{ color:#111 }
 
   /* Keep progress compact */
   .progress-status{ font-size:12px }
+
+  /* Backup group: allow two buttons side-by-side on small screens */
+  .backup-group{ display:flex; gap:8px; flex-wrap:wrap; }
+  .backup-group .backup-btn{ flex:1 1 calc(50% - 8px); min-width:120px; width:auto; }
+
+  /* Make download buttons visually separated */
+  .download-btn{ margin-top:10px }
 }
 
 /* DESKTOP: two-column layout with sidebar for tabs */
