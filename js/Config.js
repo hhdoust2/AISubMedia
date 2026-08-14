@@ -1,4 +1,3 @@
-
 // مدیریت تنظیمات کاربر (پروایدرها و کلیدهای API) در localStorage.
 // نکته امنیتی: این کلیدها فقط در همین مرورگر ذخیره می‌شوند و به سرور ما فرستاده
 // نمی‌شوند (مگر در لحظه‌ی خودِ درخواست ترجمه/تبدیل که مستقیماً لازم است).
@@ -102,37 +101,59 @@ export function findExistingProviderKey(name) {
     );
 }
 
-export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
+export function addProvider(rawName, baseUrl, modelsInput, maxRps = null) {
     const name = rawName.trim();
     const url = baseUrl.trim();
-    const modelList = modelsCsv.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
 
-    if (!name || !url || modelList.length === 0) {
-        throw new Error('لطفاً نام پروایدر، اندپوینت و حداقل یک مدل را پر کنید.');
+    if (!name || !url) {
+        throw new Error('لطفاً نام پروایدر و اندپوینت را پر کنید[span_0](start_span)[span_0](end_span).');
     }
     if (!/^https:\/\//i.test(url)) {
-        throw new Error('اندپوینت باید با https:// شروع شود.');
+        throw new Error('اندپوینت باید با https:// شروع شود[span_1](start_span)[span_1](end_span).');
+    }
+
+    // تبدیل ورودی مدل‌ها به آرایه‌ای از آبجکت‌ها (پشتیبانی از رشته یا ساختار دارای maxRps مجزا)
+    let modelList = [];
+    if (Array.isArray(modelsInput)) {
+        modelList = modelsInput;
+    } else if (typeof modelsInput === 'string') {
+        modelList = modelsInput.split(',').map((m) => {
+            const trimmed = m.trim();
+            return trimmed ? { name: trimmed, maxRps: maxRps && !isNaN(parseFloat(maxRps)) ? parseFloat(maxRps) : null } : null;
+        }).filter(Boolean);
+    }
+
+    if (modelList.length === 0) {
+        throw new Error('حداقل یک مدل باید وارد شود[span_2](start_span)[span_2](end_span).');
     }
 
     const existingKey = findExistingProviderKey(name);
     const key = existingKey || normalizeProviderName(name);
     if (RESERVED_KEYS.has(key)) {
-        throw new Error('این نام پروایدر مجاز نیست.');
+        throw new Error('این نام پروایدر مجاز نیست[span_3](start_span)[span_3](end_span).');
     }
-
-    const parsedMaxRps = maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
 
     if (!configData.providers[key]) {
         configData.providers[key] = { name, url, models: [] };
     }
-    modelList.forEach((modelName) => {
+
+    // به‌روزرسانی یا اضافه کردن مدل‌ها به همراه maxRps اختصاصی هرکدام
+    modelList.forEach((incomingModel) => {
+        const modelName = typeof incomingModel === 'string' ? incomingModel : incomingModel.name;
+        const modelRps = incomingModel.maxRps !== undefined ? (incomingModel.maxRps ? parseFloat(incomingModel.maxRps) : null) : (maxRps ? parseFloat(maxRps) : null);
+
+        if (!modelName) return;
+
         const existingModel = configData.providers[key].models.find((m) => m.name === modelName);
         if (existingModel) {
-            if (parsedMaxRps) existingModel.maxRps = parsedMaxRps;
+            if (modelRps !== null) {
+                existingModel.maxRps = modelRps;
+            }
         } else {
-            configData.providers[key].models.push({ name: modelName, maxRps: parsedMaxRps });
+            configData.providers[key].models.push({ name: modelName, maxRps: modelRps });
         }
     });
+
     configData.providers[key].url = url;
     configData.providers[key].name = configData.providers[key].name || name;
     saveConfig();
@@ -144,7 +165,7 @@ export function addApiKey(label, key) {
     const trimmedLabel = label.trim();
     const trimmedKey = key.trim();
     if (!trimmedLabel || !trimmedKey) {
-        throw new Error('لطفاً برچسب کلید و خود کلید را وارد کنید.');
+        throw new Error('لطفاً برچسب کلید و خود کلید را وارد کنید[span_4](start_span)[span_4](end_span).');
     }
     configData.api_keys.push({ label: trimmedLabel, key: trimmedKey });
     saveConfig();
@@ -167,7 +188,7 @@ export function exportConfig() {
 export function importConfig(jsonText) {
     const imported = JSON.parse(jsonText);
     if (!imported || typeof imported !== 'object') {
-        throw new Error('ساختار فایل نامعتبر است.');
+        throw new Error('ساختار فایل نامعتبر است[span_5](start_span)[span_5](end_span).');
     }
     const next = emptyConfig();
     next.version = imported.version || '1.0';
