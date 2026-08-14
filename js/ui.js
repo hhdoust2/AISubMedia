@@ -165,8 +165,8 @@ export function initApp() {
         providerKeys.forEach((pKey) => {
             const prov = configData.providers[pKey];
             if (prov && prov.models) {
-                prov.models.forEach((model) => {
-                    provItems.push({ value: `${pKey}|${model}`, label: `${prov.name || pKey} (${model})` });
+                prov.models.forEach((modelObj) => {
+                    provItems.push({ value: `${pKey}|${modelObj.name}`, label: `${prov.name || pKey} (${modelObj.name})` });
                 });
             }
         });
@@ -192,7 +192,8 @@ export function initApp() {
         const configData = getConfig();
         const pKey = srtProviderSelect.value;
         const prov = configData.providers[pKey];
-        const items = prov && prov.models ? prov.models.map((m) => ({ value: m, label: m })) : [];
+        // اصلاح‌شده: استخراج name از آبجکت مدل
+        const items = prov && prov.models ? prov.models.map((m) => ({ value: m.name, label: m.name })) : [];
         fillSelectOptions(srtModelSelect, prov ? '-- انتخاب مدل --' : '-- ابتدا پروایدر را انتخاب کنید --', items);
     }
 
@@ -384,7 +385,9 @@ export function initApp() {
             if (!tModel) { alert('لطفاً مدل ترجمه را انتخاب کنید.'); return; }
             if (!tKey) { alert('لطفاً کلید API را انتخاب کنید.'); return; }
             tProvUrl = configData.providers[pKey]?.url;
-            tProvMaxRps = configData.providers[pKey]?.maxRps || null;
+            // استخراج maxRps مختص به همان مدل انتخابی
+            const foundModel = configData.providers[pKey]?.models?.find(m => m.name === tModel);
+            tProvMaxRps = foundModel ? foundModel.maxRps : null;
         }
 
         const srtEls = { state: srtProgressState, bar: srtProgressBar, percent: srtProgressPercent };
