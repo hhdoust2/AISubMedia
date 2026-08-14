@@ -1,6 +1,7 @@
 /* Responsive styles for AISubMedia
    Mobile-first, with layout adjustments for desktop screens (>=900px).
    Keep RTL direction from HTML (lang="fa" dir="rtl").
+   Fixes: ensure consistent button sizing, preserve mobile layout limits, and robust tab overflow handling.
 */
 
 /* Basic reset & variables */
@@ -15,6 +16,7 @@
   --card-radius:14px;
   --pad:16px;
   --max-width:1100px;
+  --mobile-max-width:560px;
   --sidebar-w:320px;
 }
 
@@ -69,16 +71,22 @@ html,body{
   flex-wrap:nowrap;
   overflow:auto;
   -webkit-overflow-scrolling:touch;
+  white-space:nowrap; /* prevent wrapping which breaks mobile layout */
 }
 .main-tab-btn{
-  flex:0 0 auto;
+  flex:1 0 auto; /* distribute evenly on mobile but allow shrink */
+  min-width:0;
   background:transparent;
   border:1px solid rgba(255,255,255,0.04);
-  padding:8px 10px;
+  padding:10px 12px;
   border-radius:10px;
   color:var(--muted);
-  font-size:13px;
+  font-size:14px;
   cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
 }
 .main-tab-btn.active{
   background: linear-gradient(90deg, rgba(99,102,241,0.14), rgba(79,70,229,0.08));
@@ -112,7 +120,7 @@ html,body{
 /* Inputs/buttons */
 input[type="text"], input[type="url"], input[type="password"], select{
   width:100%;
-  padding:9px 10px;
+  padding:10px 12px;
   border-radius:8px;
   border:1px solid rgba(255,255,255,0.04);
   background: rgba(255,255,255,0.02);
@@ -135,8 +143,11 @@ select option{ color:#111 }
 }
 .file-input-wrapper{ margin-bottom:10px; }
 
-/* Buttons */
-.btn-primary, .submit-btn, .backup-btn, .delete-btn, .download-btn{
+/* Ensure link input is hidden by default (JS toggles it) */
+.link-input-wrapper{ display: none; margin-bottom: 15px; }
+
+/* Buttons: normalize sizes across UI */
+.btn-primary, .submit-btn, .backup-btn, .delete-btn, .download-btn, .tab-btn{
   background: linear-gradient(90deg,var(--accent), #4f46e5);
   color:#fff;
   border:none;
@@ -144,8 +155,15 @@ select option{ color:#111 }
   border-radius:10px;
   cursor:pointer;
   font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:14px;
+  line-height:1;
+  min-height:44px; /* touch target */
 }
-.delete-btn{ background: #ef4444; border-radius:10px; color:#fff; padding:10px 12px }
+.delete-btn{ background: #ef4444; color:#fff; }
 .backup-btn{ background: linear-gradient(90deg,#10b981,#06b6d4) }
 
 .row-group{ display:flex; gap:8px }
@@ -160,6 +178,12 @@ select option{ color:#111 }
   background:transparent;
   color:var(--muted);
   cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:14px;
+  min-height:40px;
 }
 .tab-btn.active{ background: rgba(99,102,241,0.08); color:#fff }
 
@@ -180,16 +204,29 @@ select option{ color:#111 }
   transition: width .3s ease;
 }
 
-/* loader */
-.loader{ height:6px; width:100%; background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); margin:12px 0; border-radius:4px }
+/* loader (hidden by default; JS may toggle) */
+.loader{ display:none; height:6px; width:100%; background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); margin:12px 0; border-radius:4px }
 
 /* small screens final spacing */
 @media (max-width:899px){
   body{ padding:14px }
-  .card{ border-radius:12px }
+  .card{ border-radius:12px; max-width:var(--mobile-max-width); margin:0 auto; }
   .card-header h2{ font-size:16px }
   .section-box{ padding:10px }
   .main-tabs{ gap:6px; }
+
+  /* Make primary form buttons full width on mobile for consistent layout */
+  .submit-btn, .download-btn, .btn-primary, .backup-btn{ width:100%; }
+
+  /* Tabs: allow scrolling if labels overflow */
+  .main-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .main-tab-btn{ flex:0 0 auto; }
+
+  /* Input/link wrappers */
+  .link-input-wrapper{ display:none; }
+
+  /* Keep progress compact */
+  .progress-status{ font-size:12px }
 }
 
 /* DESKTOP: two-column layout with sidebar for tabs */
@@ -218,6 +255,7 @@ select option{ color:#111 }
     flex-direction:column;
     gap:10px;
     margin-top:6px;
+    white-space:normal;
   }
   .main-tab-btn{
     display:block;
@@ -243,8 +281,9 @@ select option{ color:#111 }
 
   /* make forms and controls larger on desktop */
   input[type="text"], input[type="url"], select{ padding:12px; font-size:15px; border-radius:10px }
-  .submit-btn{ padding:12px 16px; font-size:15px }
-  .download-btn{ margin-top:12px }
+  .submit-btn{ padding:12px 16px; font-size:15px; width:auto; min-width:140px }
+  .download-btn{ margin-top:12px; width:auto }
+  .btn-primary{ width:auto }
 
   /* For larger screens, show progress container by default when active (JS should toggle .active) */
   .progress-container{ display:block }
@@ -268,3 +307,6 @@ button:focus, input:focus, select:focus{ outline: 3px solid rgba(99,102,241,0.15
 /* small helpers */
 .translate-box{ margin-top:6px; }
 .progress-status{ display:flex; justify-content:space-between; font-size:13px; color:var(--muted) }
+
+/* Default: hide download until JS enables it (keeps previous behavior) */
+.download-btn{ display:none }
