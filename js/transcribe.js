@@ -6,7 +6,7 @@ import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js'
 // segment را روی شروع واقعی اولین کلمه‌ای که با آن هم‌پوشانی زمانی دارد تنظیم
 // می‌کنیم. این فقط شروع را دیرتر می‌برد (هیچ‌وقت زودتر)، و فقط وقتی اختلاف
 // معقول است (حداکثر ۶ ثانیه) تا در برابر خطای تطبیق کلمه محافظه‌کارانه بمانیم.
-// هدف: رفع مشکل «زیرنویس چند ثانیه زودتر از دیالوگ می‌آید» که وقتی قبل از
+// هدف: رفع مشکل «زیرنویس ��ند ثانیه زودتر از دیالوگ می‌آید» که وقتی قبل از
 // حرف‌زدن سکوت یا موسیقی هست، Whisper گاهی آن را هم جزو segment حساب می‌کند.
 function refineSegmentStarts(segments, words) {
     if (!Array.isArray(words) || words.length === 0) return segments;
@@ -33,6 +33,8 @@ export function processAudioFile(file, ctx) {
         progressContainer, progressBar, progressPercent, progressState,
         output, loader, submitBtn, downloadBtn,
         onDone,
+        // دریافت مقادیر ارسال‌شده از ui.js (اگر ارسال شده باشند)
+        whisperMaxRps, translateMaxRps, translateProvUrl: ctxTranslateProvUrl, translateModelName: ctxTranslateModelName,
     } = ctx;
 
     const wVal = assignWhisperSelect.value;
@@ -56,10 +58,25 @@ export function processAudioFile(file, ctx) {
 
     let tProvUrl = '', tModel = '', tProvMaxRps = null;
     if (isTranslate) {
-        const [tProvName, modelName] = tVal.split('|');
-        tProvUrl = configData.providers[tProvName]?.url;
-        tModel = modelName;
-        tProvMaxRps = configData.providers[tProvName]?.maxRps || null;
+        // اگر UI مقدار url/model/maxRps را فرستاده از آن استفاده کن، در غیر این صورت از config بخوان
+        if (ctxTranslateProvUrl) {
+            tProvUrl = ctxTranslateProvUrl;
+        } else if (tVal && tVal.includes('|')) {
+            const [tProvName] = tVal.split('|');
+            tProvUrl = configData.providers[tProvName]?.url;
+        }
+
+        tModel = ctxTranslateModelName || (tVal && tVal.includes('|') ? tVal.split('|')[1] : '');
+
+        if (translateMaxRps) {
+            tProvMaxRps = translateMaxRps;
+        } else if (tVal && tVal.includes('|')) {
+            const [tProvName, modelName] = tVal.split('|');
+            const foundModel = configData.providers[tProvName]?.models?.find(m => m.name === modelName);
+            tProvMaxRps = foundModel ? foundModel.maxRps : null;
+        } else {
+            tProvMaxRps = null;
+        }
     }
 
     progressContainer.style.display = 'block';
@@ -125,7 +142,7 @@ export function processAudioFile(file, ctx) {
                 const gResult = await translateSegmentsWithGoogle(segments, { state: progressState, bar: progressBar, percent: progressPercent });
                 srt = convertSegmentsToSRT(gResult.segments);
                 if (gResult.failedChunks > 0) {
-                    translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
+                    translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در د�[...]`
                 }
             } else {
                 srt = convertSegmentsToSRT(segments);
@@ -133,7 +150,7 @@ export function processAudioFile(file, ctx) {
                     const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent }, { maxRps: tProvMaxRps });
                     srt = trResult.text;
                     if (trResult.failedChunks > 0) {
-                        translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شده).`;
+                        translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین �[...]`
                     }
                 }
             }
