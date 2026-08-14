@@ -3,7 +3,7 @@ import { fillSelectOptions, baseFileName, downloadTextFile } from './utils.js';
 import {
     loadConfig, getConfig, saveConfig,
     addProvider, addApiKey, deleteApiKey,
-    exportConfig, importConfig, findModelSettings,
+    exportConfig, importConfig,
 } from './config.js';
 import { parseSrtBlocks, buildSrtFromBlocks } from './srt.js';
 import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js';
@@ -166,7 +166,7 @@ export function initApp() {
             const prov = configData.providers[pKey];
             if (prov && prov.models) {
                 prov.models.forEach((model) => {
-                    provItems.push({ value: `${pKey}|${model.name}`, label: `${prov.name || pKey} (${model.name})` });
+                    provItems.push({ value: `${pKey}|${model}`, label: `${prov.name || pKey} (${model})` });
                 });
             }
         });
@@ -192,7 +192,7 @@ export function initApp() {
         const configData = getConfig();
         const pKey = srtProviderSelect.value;
         const prov = configData.providers[pKey];
-        const items = prov && prov.models ? prov.models.map((m) => ({ value: m.name, label: m.name })) : [];
+        const items = prov && prov.models ? prov.models.map((m) => ({ value: m, label: m })) : [];
         fillSelectOptions(srtModelSelect, prov ? '-- انتخاب مدل --' : '-- ابتدا پروایدر را انتخاب کنید --', items);
     }
 
@@ -226,15 +226,17 @@ export function initApp() {
     keyWhisperSelect.addEventListener('change', () => localStorage.setItem('assigned_key_whisper', keyWhisperSelect.value));
     keyTranslateSelect.addEventListener('change', () => localStorage.setItem('assigned_key_translate', keyTranslateSelect.value));
 
+    const provIsFree = document.getElementById('provIsFree');
     const provMaxRps = document.getElementById('provMaxRps');
 
     // ---------- تنظیمات: افزودن پروایدر ----------
     saveEndpointBtn.addEventListener('click', () => {
         try {
-            const result = addProvider(provName.value, provBaseUrl.value, provModel.value, provMaxRps.value);
+            const result = addProvider(provName.value, provBaseUrl.value, provModel.value, provIsFree.checked, provMaxRps.value);
             provName.value = '';
             provBaseUrl.value = 'https://ai-reverse.aialsabela.workers.dev/groq/openai/v1';
             provModel.value = '';
+            provIsFree.checked = false;
             provMaxRps.value = '';
             updateDropdowns();
             alert(
@@ -375,7 +377,7 @@ export function initApp() {
         }
 
         const configData = getConfig();
-        let tProvUrl = '', tModel = '', tKey = '', tProvMaxRps = null;
+        let tProvUrl = '', tModel = '', tKey = '', tProvIsFree = false, tProvMaxRps = null;
         if (isAiTranslate) {
             const pKey = srtProviderSelect.value;
             tModel = srtModelSelect.value;
@@ -384,7 +386,8 @@ export function initApp() {
             if (!tModel) { alert('لطفاً مدل ترجمه را انتخاب کنید.'); return; }
             if (!tKey) { alert('لطفاً کلید API را انتخاب کنید.'); return; }
             tProvUrl = configData.providers[pKey]?.url;
-            tProvMaxRps = findModelSettings(pKey, tModel).maxRps;
+            tProvIsFree = configData.providers[pKey]?.isFree === true;
+            tProvMaxRps = configData.providers[pKey]?.maxRps || null;
         }
 
         const srtEls = { state: srtProgressState, bar: srtProgressBar, percent: srtProgressPercent };
@@ -414,7 +417,7 @@ export function initApp() {
                     srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
                 }
             } else {
-                const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { maxRps: tProvMaxRps });
+                const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { forceFree: tProvIsFree, maxRps: tProvMaxRps });
                 translatedSrt = trResult.text;
                 if (trResult.failedChunks > 0) {
                     srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شده).`;

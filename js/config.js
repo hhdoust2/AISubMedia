@@ -19,50 +19,10 @@ function emptyConfig() {
     };
 }
 
-// هر مدل زیر یک پروایدر می‌تونه RPS متفاوتی از بقیهٔ مدل‌های همون پروایدر
-// داشته باشه (مثلاً mistral-large=0.07 RPS ولی mistral-medium=0.38). برای
-// همین maxRps مال خودِ پروایدر نیست، مال تک‌تک مدل‌هاست. این تابع فرمت قدیمی
-// (رشتهٔ ساده یا isFree/maxRps سطح-پروایدر) رو به فرمت جدید تبدیل می‌کنه تا
-// تنظیمات قبلی کاربرها از دست نره.
-function normalizeModelEntry(entry, legacyMaxRps) {
-    if (typeof entry === 'string') {
-        return { name: entry, maxRps: legacyMaxRps || null };
-    }
-    if (entry && typeof entry === 'object') {
-        return {
-            name: String(entry.name || '').trim(),
-            maxRps: entry.maxRps ? parseFloat(entry.maxRps) : null,
-        };
-    }
-    return null;
-}
-
-function migrateProvider(rawProvider) {
-    const legacyMaxRps = rawProvider.maxRps ? parseFloat(rawProvider.maxRps) : null;
-    const models = Array.isArray(rawProvider.models)
-        ? rawProvider.models
-            .map((m) => normalizeModelEntry(m, legacyMaxRps))
-            .filter((m) => m && m.name)
-        : [];
-    return {
-        name: rawProvider.name || '',
-        url: rawProvider.url || '',
-        models,
-    };
-}
-
 let configData = emptyConfig();
 
 export function getConfig() {
     return configData;
-}
-
-// مدل مشخصی از یک پروایدر رو پیدا می‌کنه (برای گرفتن maxRps مخصوص همون مدل)
-export function findModelSettings(providerKey, modelName) {
-    const provider = configData.providers[providerKey];
-    if (!provider) return { maxRps: null };
-    const found = provider.models.find((m) => m.name === modelName);
-    return found ? { maxRps: found.maxRps || null } : { maxRps: null };
 }
 
 export function loadConfig() {
@@ -76,7 +36,7 @@ export function loadConfig() {
             if (parsed.providers && typeof parsed.providers === 'object') {
                 for (const [key, value] of Object.entries(parsed.providers)) {
                     if (RESERVED_KEYS.has(key)) continue;
-                    configData.providers[key] = migrateProvider(value);
+                    configData.providers[key] = value;
                 }
             }
         } catch (e) {
@@ -109,11 +69,7 @@ export function findExistingProviderKey(name) {
     );
 }
 
-// maxRps اینجا فقط برای مدل‌هایی اعمال می‌شه که دقیقاً همین الان دارن با
-// همین فراخوانی اضافه می‌شن — نه کل پروایدر. یعنی می‌تونی همین پروایدر رو
-// دوباره با یه مدل دیگه و RPS متفاوت اضافه کنی، بدون اینکه به مدل‌های
-// قبلی‌ش دست بخوره.
-export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
+export function addProvider(rawName, baseUrl, modelsCsv, isFree = false, maxRps = null) {
     const name = rawName.trim();
     const url = baseUrl.trim();
     const modelList = modelsCsv.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
@@ -131,34 +87,27 @@ export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
         throw new Error('این نام پروایدر مجاز نیست.');
     }
 
-    const parsedMaxRps = maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
-
     if (!configData.providers[key]) {
-        configData.providers[key] = { name, url, models: [] };
+        configData.providers[key] = { name, url, models: [], isFree: false };
     }
-    modelList.forEach((modelName) => {
-        const existingModel = configData.providers[key].models.find((m) => m.name === modelName);
-        if (existingModel) {
-            if (parsedMaxRps) existingModel.maxRps = parsedMaxRps;
-        } else {
-            configData.providers[key].models.push({ name: modelName, maxRps: parsedMaxRps });
+    modelList.forEach((model) => {
+        if (!configData.providers[key].models.includes(model)) {
+            configData.providers[key].models.push(model);
         }
     });
     configData.providers[key].url = url;
     configData.providers[key].name = configData.providers[key].name || name;
+    // اگر همین الان با تیک "رایگان" اضافه شده، پروایدر رایگان علامت بخوره؛
+    // اگر پروایدر از قبل بود و این‌بار تیک نخورده بود، وضعیت قبلی‌اش را خراب نمی‌کنیم.
+    if (isFree) {
+        configData.providers[key].isFree = true;
+    }
+    if (maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0) {
+        configData.providers[key].maxRps = parseFloat(maxRps);
+    }
     saveConfig();
 
     return { key, addedCount: modelList.length, providerName: configData.providers[key].name };
-}
-
-// آپدیت maxRps یک مدل خاص بعد از اینکه قبلاً اضافه شده (بدون نیاز به دوباره اضافه‌کردن)
-export function updateModelSettings(providerKey, modelName, maxRps) {
-    const provider = configData.providers[providerKey];
-    if (!provider) throw new Error('پروایدر پیدا نشد.');
-    const model = provider.models.find((m) => m.name === modelName);
-    if (!model) throw new Error('مدل پیدا نشد.');
-    model.maxRps = maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
-    saveConfig();
 }
 
 export function addApiKey(label, key) {
@@ -197,7 +146,7 @@ export function importConfig(jsonText) {
 
     Object.keys(imported).forEach((k) => {
         if (RESERVED_KEYS.has(k)) return;
-        next.providers[k] = migrateProvider(imported[k]);
+        next.providers[k] = imported[k];
     });
 
     configData = next;
