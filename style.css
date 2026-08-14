@@ -1,23 +1,312 @@
-/* Make sure download buttons sit below progress/output and never overlap content */
-#downloadBtn,
-#srtDownloadBtn,
-.download-btn {
-  display: block !important;        /* JS ممکنه inline display بگذارد؛ با !important تضمین می‌کنیم بلوک شود */
-  position: relative;
-  z-index: 2;
-  margin-top: 20px !important;     /* فاصلهٔ کافی بالایی تا روی متن نیفتد */
-  margin-bottom: 8px;
+/* Responsive styles for AISubMedia
+   Mobile-first, with layout adjustments for desktop screens (>=900px).
+   Keep RTL direction from HTML (lang="fa" dir="rtl").
+   Fixes: ensure consistent button sizing, preserve mobile layout limits, and robust tab overflow handling.
+*/
+
+/* Basic reset & variables */
+:root{
+  --bg:#0b1220;
+  --card-bg: linear-gradient(180deg,#071021 0%, #0f1724 100%);
+  --muted:#9ca3af;
+  --accent:#6366f1;
+  --success:#34d399;
+  --danger:#fca5a5;
+  --glass: rgba(255,255,255,0.03);
+  --card-radius:14px;
+  --pad:16px;
+  --max-width:1100px;
+  --mobile-max-width:560px;
+  --sidebar-w:320px;
 }
 
-/* Give extra breathing room under progress/output so buttons don't overlap */
-.progress-container { margin-bottom: 18px !important; }
-#output, #srtOutput { margin-bottom: 18px !important; }
+*{box-sizing:border-box}
+html,body{
+  height:100%;
+  margin:0;
+  font-family: "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+  background: radial-gradient(ellipse at 10% 10%, rgba(99,102,241,0.06), transparent 5%),
+              radial-gradient(ellipse at 90% 90%, rgba(16,185,129,0.03), transparent 5%),
+              var(--bg);
+  color:#e6edf3;
+  direction: rtl;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  padding:20px;
+}
 
-/* Ensure scrolling region has bottom padding so fixed/bottom buttons don't cover content */
-.scrollable-content { padding-bottom: 48px; }
+/* Card */
+.card{
+  width:100%;
+  max-width:var(--max-width);
+  margin:0 auto;
+  background:var(--card-bg);
+  border-radius:var(--card-radius);
+  box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
 
-/* Mobile tweak: کمی بیشتر فاصله برای صفحه‌های کوچک */
+/* Header (title + horizontal tabs on mobile) */
+.card-header{
+  padding:18px var(--pad);
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  align-items:stretch;
+  border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.card-header h2{
+  margin:0;
+  font-size:18px;
+  font-weight:700;
+  color:#f8fafc;
+}
+
+/* main-tabs (mobile: horizontal, desktop: vertical sidebar) */
+.main-tabs{
+  display:flex;
+  gap:8px;
+  flex-wrap:nowrap;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  white-space:nowrap; /* prevent wrapping which breaks mobile layout */
+}
+.main-tab-btn{
+  flex:1 0 auto; /* distribute evenly on mobile but allow shrink */
+  min-width:0;
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.04);
+  padding:10px 12px;
+  border-radius:10px;
+  color:var(--muted);
+  font-size:14px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.main-tab-btn.active{
+  background: linear-gradient(90deg, rgba(99,102,241,0.14), rgba(79,70,229,0.08));
+  color:#fff;
+  border-color: rgba(99,102,241,0.25);
+}
+
+/* scrollable area with tabs content */
+.scrollable-content{
+  padding:16px;
+  display:block;
+}
+
+/* Tab content blocks */
+.tab-content{ display:none; }
+.tab-content.active{ display:block; }
+
+.section-box{
+  background:var(--glass);
+  border-radius:10px;
+  padding:12px;
+  margin-bottom:12px;
+  border:1px solid rgba(255,255,255,0.02);
+}
+.section-title{
+  display:inline-block;
+  font-weight:700;
+  margin-bottom:8px;
+}
+
+/* Inputs/buttons */
+input[type="text"], input[type="url"], input[type="password"], select{
+  width:100%;
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.02);
+  color: #e6edf3;
+  font-size:14px;
+  outline:none;
+}
+select option{ color:#111 }
+
+.custom-file-upload{
+  display:block;
+  width:100%;
+  padding:12px;
+  text-align:center;
+  background:rgba(255,255,255,0.02);
+  border-radius:8px;
+  border:1px dashed rgba(255,255,255,0.03);
+  color:var(--muted);
+  cursor:pointer;
+}
+.file-input-wrapper{ margin-bottom:10px; }
+
+/* Ensure link input is hidden by default (JS toggles it) */
+.link-input-wrapper{ display: none; margin-bottom: 15px; }
+
+/* Buttons: normalize sizes across UI */
+.btn-primary, .submit-btn, .backup-btn, .delete-btn, .download-btn, .tab-btn{
+  background: linear-gradient(90deg,var(--accent), #4f46e5);
+  color:#fff;
+  border:none;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:14px;
+  line-height:1;
+  min-height:44px; /* touch target */
+}
+.delete-btn{ background: #ef4444; color:#fff; }
+.backup-btn{ background: linear-gradient(90deg,#10b981,#06b6d4) }
+
+.row-group{ display:flex; gap:8px }
+.row-group input{ flex:1 }
+
+/* small UI elements */
+.input-type-selector{ display:flex; gap:8px; margin:12px 0 8px 0 }
+.tab-btn{
+  padding:9px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.03);
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:14px;
+  min-height:40px;
+}
+.tab-btn.active{ background: rgba(99,102,241,0.08); color:#fff }
+
+/* progress */
+.progress-container{ display:none; margin-top:12px }
+.progress-container.active{ display:block }
+.progress-bar-wrapper{
+  background: rgba(255,255,255,0.03);
+  height:8px;
+  border-radius:6px;
+  overflow:hidden;
+  margin-top:8px;
+}
+.progress-bar{
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg,#34d399,#60a5fa);
+  transition: width .3s ease;
+}
+
+/* loader (hidden by default; JS may toggle) */
+.loader{ display:none; height:6px; width:100%; background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); margin:12px 0; border-radius:4px }
+
+/* small screens final spacing */
 @media (max-width:899px){
-  #downloadBtn, #srtDownloadBtn, .download-btn { margin-top: 22px !important; }
-  .scrollable-content { padding-bottom: 64px; }
+  body{ padding:14px }
+  .card{ border-radius:12px; max-width:var(--mobile-max-width); margin:0 auto; }
+  .card-header h2{ font-size:16px }
+  .section-box{ padding:10px }
+  .main-tabs{ gap:6px; }
+
+  /* Make primary form buttons full width on mobile for consistent layout */
+  .submit-btn, .download-btn, .btn-primary, .backup-btn{ width:100%; }
+
+  /* Tabs: allow scrolling if labels overflow */
+  .main-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .main-tab-btn{ flex:0 0 auto; }
+
+  /* Input/link wrappers */
+  .link-input-wrapper{ display:none; }
+
+  /* Keep progress compact */
+  .progress-status{ font-size:12px }
 }
+
+/* DESKTOP: two-column layout with sidebar for tabs */
+@media (min-width:900px){
+  .card{
+    display:grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    gap:18px;
+    align-items:start;
+    padding:18px;
+  }
+
+  /* Move header title into left sidebar area and make it compact */
+  .card-header{
+    grid-column:1 / 2;
+    padding:12px;
+    align-items:flex-start;
+    min-height: calc(100vh - 60px);
+    border-right:1px solid rgba(255,255,255,0.03);
+    border-bottom:0;
+  }
+  .card-header h2{ font-size:16px; margin-bottom:10px }
+
+  /* main-tabs become vertical full-height navigation */
+  .main-tabs{
+    flex-direction:column;
+    gap:10px;
+    margin-top:6px;
+    white-space:normal;
+  }
+  .main-tab-btn{
+    display:block;
+    width:100%;
+    text-align:right;
+    padding:12px 14px;
+    font-size:15px;
+    border-radius:10px;
+  }
+
+  /* content column */
+  .scrollable-content{
+    grid-column:2 / -1;
+    padding:12px 18px;
+    max-height: calc(100vh - 36px);
+    overflow:auto;
+  }
+
+  /* Make the section and form layout wider & more spacious */
+  .section-box{ padding:16px }
+  .input-type-selector{ gap:12px }
+  .custom-file-upload{ padding:14px; font-size:15px }
+
+  /* make forms and controls larger on desktop */
+  input[type="text"], input[type="url"], select{ padding:12px; font-size:15px; border-radius:10px }
+  .submit-btn{ padding:12px 16px; font-size:15px; width:auto; min-width:140px }
+  .download-btn{ margin-top:12px; width:auto }
+  .btn-primary{ width:auto }
+
+  /* For larger screens, show progress container by default when active (JS should toggle .active) */
+  .progress-container{ display:block }
+
+  /* Optional: split some forms into two columns */
+  .two-col{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+  }
+
+  /* improve readability of SRT section in desktop */
+  #tabContentTranslate .section-box, #tabContentSettings .section-box{
+    margin-bottom:14px;
+  }
+}
+
+/* Accessibility / focus */
+button:focus, input:focus, select:focus{ outline: 3px solid rgba(99,102,241,0.15); outline-offset:2px; }
+
+/* small helpers */
+.translate-box{ margin-top:6px; }
+.progress-status{ display:flex; justify-content:space-between; font-size:13px; color:var(--muted) }
+
+/* Default: hide download until JS enables it (keeps previous behavior) */
+.download-btn{ display:none }
