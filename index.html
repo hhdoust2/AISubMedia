@@ -173,24 +173,12 @@
                         <input type="text" id="provName" placeholder="نام پروایدر (مثلا: Groq)">
                         <input type="text" id="provBaseUrl" placeholder="Base URL (اندپوینت)" value="https://ai-reverse.aialsabela.workers.dev/groq/openai/v1">
                         <input type="text" id="provModel" placeholder="نام مدل — چند مدل را با کاما جدا کنید (مثلا: model-a, model-b)">
+                        <input type="text" id="provMaxRps" placeholder="حداکثر Requests/Second (اختیاری، از داشبورد پروایدر) — مثلا 0.07">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #d1d5db; font-size: 12px;">
+                            <input type="checkbox" id="provIsFree" style="width: 16px; height: 16px; accent-color: #4f46e5;">
+                            <span>این پروایدر/مدل‌ها رایگان هستند (دسته‌های کوچک‌تر و محتاطانه‌تر برای جلوگیری از rate-limit)</span>
+                        </label>
                         <button type="button" class="btn-primary" id="saveEndpointBtn">افزودن پروایدر به لیست ➕</button>
-                    </div>
-                </div>
-
-                <div class="section-box">
-                    <span class="section-title" style="color: #a5b4fc;">⚡ محدودیت نرخ (RPS) هر مدل</span>
-                    <p style="font-size: 11px; color: #9ca3af; margin: 0 0 8px;">
-                        عدد Requests/Second را از داشبورد خودِ پروایدر (برای همون مدل خاص) بردار و اینجا ثبت کن.
-                        این عدد باعث می‌شه ترجمه با سرعت درست (نه حدسی) و بدون خطای rate-limit انجام بشه.
-                    </p>
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                        <select id="rpsProviderSelect"><option value="">-- انتخاب پروایدر --</option></select>
-                        <select id="rpsModelSelect"><option value="">-- ابتدا پروایدر را انتخاب کنید --</option></select>
-                        <div class="row-group">
-                            <input type="text" id="rpsValueInput" placeholder="مقدار RPS (مثلا: 0.07)" style="flex: 1;">
-                            <button type="button" class="btn-primary" id="rpsSaveBtn" style="background-color: #10b981; width: auto; white-space: nowrap;">ثبت ⚡</button>
-                            <button type="button" class="delete-btn" id="rpsDeleteBtn" style="width: auto;">حذف 🗑️</button>
-                        </div>
                     </div>
                 </div>
 
