@@ -442,13 +442,13 @@ export function initApp() {
                 const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text }));
                 translatedSrt = buildSrtFromBlocks(translatedBlocks);
                 if (gResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در دسترس نبود).`;
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در [...]
                 }
             } else {
                 const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { maxRps: tProvMaxRps });
                 translatedSrt = trResult.text;
                 if (trResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شده).`;
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین ش[...
                 }
             }
 
@@ -500,4 +500,32 @@ export function initApp() {
     // ---------- شروع ----------
     loadConfig();
     updateDropdowns();
+
+    // --- Small UI fixes to ensure consistent mobile behavior ---
+    try {
+        // Ensure main tab and process tab active state
+        if (mainTabProcess) activateMainTab(mainTabProcess);
+
+        // Default to upload mode for audio and SRT
+        if (fileInputWrapper) fileInputWrapper.style.display = 'block';
+        if (linkInputWrapper) linkInputWrapper.style.display = 'none';
+        if (tabUpload) { tabUpload.classList.add('active'); }
+        if (tabLink) { tabLink.classList.remove('active'); }
+
+        if (srtFileInputWrapper) srtFileInputWrapper.style.display = 'block';
+        if (srtLinkInputWrapper) srtLinkInputWrapper.style.display = 'none';
+        if (srtTabUpload) srtTabUpload.classList.add('active');
+        if (srtTabLink) srtTabLink.classList.remove('active');
+
+        // Hide download buttons until content ready
+        if (downloadBtn) downloadBtn.style.display = 'none';
+        if (srtDownloadBtn) srtDownloadBtn.style.display = 'none';
+
+        // Normalize button heights for consistent look on mobile
+        document.querySelectorAll('.btn-primary, .submit-btn, .backup-btn, .delete-btn, .download-btn').forEach(b => {
+            try { b.style.minHeight = '44px'; b.style.boxSizing = 'border-box'; } catch(e){}
+        });
+    } catch (err) {
+        console.warn('UI init tweaks failed', err);
+    }
 }
