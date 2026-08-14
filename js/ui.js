@@ -347,10 +347,10 @@ export function initApp() {
         }
     });
 
-    function runProcessAudio(file) {
+        function runProcessAudio(file) {
         const configData = getConfig();
 
-        // استخراج مجهز به maxRps مدل ویس
+        // استخراج maxRps مدل ویس (Whisper)
         const whisperVal = assignWhisperSelect.value;
         let whisperMaxRps = null;
         if (whisperVal && whisperVal.includes('|')) {
@@ -359,11 +359,16 @@ export function initApp() {
             if (foundModel) whisperMaxRps = foundModel.maxRps;
         }
 
-        // استخراج مجهز به maxRps مدل ترجمه صوت
+        // استخراج maxRps و URL مدل ترجمه در تب پردازش صوت
         const translateVal = assignTranslateSelect.value;
         let translateMaxRps = null;
+        let translateProvUrl = null;
+        let translateModelName = null;
+        
         if (translateVal && translateVal.includes('|')) {
             const [pKey, mName] = translateVal.split('|');
+            translateModelName = mName;
+            translateProvUrl = configData.providers[pKey]?.url;
             const foundModel = configData.providers[pKey]?.models?.find(m => m.name === mName);
             if (foundModel) translateMaxRps = foundModel.maxRps;
         }
@@ -376,9 +381,12 @@ export function initApp() {
             output, loader, submitBtn, downloadBtn,
             whisperMaxRps,
             translateMaxRps,
+            translateProvUrl,      // اضافه شدن url پروایدر ترجمه
+            translateModelName,    // اضافه شدن نام مدل ترجمه
             onDone: (srt) => { srtContent = srt; },
         });
     }
+
 
     downloadBtn.addEventListener('click', () => {
         if (!srtContent) return;
