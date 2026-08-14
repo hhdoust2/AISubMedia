@@ -109,13 +109,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // پروایدر) تا مشکل CORS نداشته باشیم. فایل را یک‌جا به سرور نمی‌فرستیم؛
     // به دسته‌های کوچک تقسیم و هر دسته را جدا می‌فرستیم، وگرنه از سقف زمان
     // اجرای توابع سرورلس رد می‌شویم.
-    // تشخیص «مدل رایگان» صرفاً از روی اسم قابل‌اعتماد نیست: بعضی پروایدرها به‌جای
-    // "model:free" از "vendor/free" یا "auto-free" استفاده می‌کنن، و بعضی مدل‌های
-    // واقعاً رایگان (مثل مدل‌های Groq) اصلاً کلمه‌ی free توی اسمشون نیست. برای
-    // همین اول به پرچم دستی (که کاربر موقع ثبت پروایدر در تنظیمات مشخص می‌کنه)
-    // اعتماد می‌کنیم؛ اگه ست نشده بود، حداقل الگوهای رایج رو با رگ‌اکس می‌گیریم.
-    const isFreeModel = options.forceFree === true || /[:/-]free\b/i.test(model || '');
-
     // اگه کاربر عدد واقعی RPS (Requests Per Second) پروایدر رو از داشبورد خودش
     // وارد کرده باشه، دیگه لازم نیست حدس بزنیم — دقیقاً همون فاصله رو رعایت
     // می‌کنیم. وقتی RPS واقعی خیلی پایینه (مثلاً 0.07 = یک درخواست هر ۱۴ ثانیه)،
@@ -125,9 +118,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     const batchSize = options.batchSize || (
         knownRps && knownRps < 0.2 ? 100 :
         knownRps && knownRps < 0.5 ? 50 :
-        isFreeModel ? 15 : 25
+        25
     );
-    const concurrency = options.concurrency || (isFreeModel ? 1 : 3);
+    const concurrency = options.concurrency || 3;
 
     const blocks = parseSrtBlocks(srtText);
     if (blocks.length === 0) {
@@ -145,9 +138,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     let failedBatches = 0;
     let nextIndex = 0;
 
-    setProgress(els, 0, `در حال ترجمه ${batches.length} دسته با هوش مصنوعی${isFreeModel ? ' (مدل رایگان — محتاطانه‌تر)' : ''}...`);
+    setProgress(els, 0, `در حال ترجمه ${batches.length} دسته با هوش مصنوعی...`);
 
-    const maxRetries = isFreeModel ? 5 : 3;
+    const maxRetries = 4;
 
     // کول‌داون مشترک بین همه‌ی worker ها: وقتی هر دسته‌ای به rate_limited برخورد
     // می‌کند، این محدودیت مختص همون یک دسته نیست، مختص کل پروایدره. بدون این
@@ -176,7 +169,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
     // تطبیقی هم هست: با هر rate_limited بیشتر می‌شه، با موفقیت‌های پایدار کم می‌شه.
     const baseMinRequestIntervalMs = options.minRequestIntervalMs || (
-        knownRps ? Math.ceil(1000 / knownRps) : (isFreeModel ? 1300 : 500)
+        knownRps ? Math.ceil(1000 / knownRps) : 500
     );
     let minRequestIntervalMs = baseMinRequestIntervalMs;
     const maxMinRequestIntervalMs = Math.max(3500, baseMinRequestIntervalMs * 2);
@@ -313,7 +306,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             if (nextIndex >= batches.length) break;
 
             if (!first) {
-                await sleep(isFreeModel ? 600 : 150);
+                await sleep(150);
             }
             first = false;
 

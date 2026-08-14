@@ -54,12 +54,11 @@ export function processAudioFile(file, ctx) {
     const wProvUrl = configData.providers[wProvName]?.url;
     if (!wProvUrl) { alert('پروایدر انتخاب‌شده معتبر نیست.'); return; }
 
-    let tProvUrl = '', tModel = '', tProvIsFree = false, tProvMaxRps = null;
+    let tProvUrl = '', tModel = '', tProvMaxRps = null;
     if (isTranslate) {
         const [tProvName, modelName] = tVal.split('|');
         tProvUrl = configData.providers[tProvName]?.url;
         tModel = modelName;
-        tProvIsFree = configData.providers[tProvName]?.isFree === true;
         tProvMaxRps = configData.providers[tProvName]?.maxRps || null;
     }
 
@@ -131,7 +130,7 @@ export function processAudioFile(file, ctx) {
             } else {
                 srt = convertSegmentsToSRT(segments);
                 if (isTranslate) {
-                    const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent }, { forceFree: tProvIsFree, maxRps: tProvMaxRps });
+                    const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent }, { maxRps: tProvMaxRps });
                     srt = trResult.text;
                     if (trResult.failedChunks > 0) {
                         translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شده).`;
