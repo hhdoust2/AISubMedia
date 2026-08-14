@@ -24,7 +24,7 @@ function looksAlreadyPersian(text) {
 // تابع ارتباط با سرور گوگل در پس‌زمینه — ارسال به بک‌اند در قالب دسته‌های
 // ۴۰ تایی برای جلوگیری از Timeout.
 //
-// نکته مهم (باگ واقعی که این نسخه رفع می‌کند): وقتی یک دسته را با هم به یک
+// نکته مهم (باگ واقعی که این نسخه رفع می‌کند): وقتی یک دسته را با ��م به یک
 // متن می‌چسبانیم و با source="auto" می‌فرستیم، گوگل زبان کل بلوک را یک‌جا
 // تشخیص می‌دهد، نه خط‌به‌خط. برای فایل‌هایی که بخشی از آن‌ها قبلاً (مثلاً با
 // هوش مصنوعی) به فارسی ترجمه شده و فقط چند خط ناموفق به زبان اصلی مانده،
@@ -114,7 +114,8 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // می‌کنیم. وقتی RPS واقعی خیلی پایینه (مثلاً 0.07 = یک درخواست هر ۱۴ ثانیه)،
     // چون هزینهٔ هر درخواست ثابته (صرف‌نظر از حجمش)، دسته‌های بزرگ‌تر بفرستیم تا
     // تعداد کل درخواست‌ها (و درنتیجه زمان کل) کمتر بشه.
-    const knownRps = options.maxRps || null;
+    // Coerce maxRps to number if provided
+    const knownRps = (typeof options.maxRps !== 'undefined' && options.maxRps !== null) ? Number(options.maxRps) : null;
     const batchSize = options.batchSize || (
         knownRps && knownRps < 0.2 ? 100 :
         knownRps && knownRps < 0.5 ? 50 :
@@ -142,35 +143,14 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
     const maxRetries = 4;
 
-    // کول‌داون مشترک بین همه‌ی worker ها: وقتی هر دسته‌ای به rate_limited برخورد
-    // می‌کند، این محدودیت مختص همون یک دسته نیست، مختص کل پروایدره. بدون این
-    // هماهنگی، بقیه‌ی worker ها با همون سرعت قبلی به محدودیتِ هنوز فعال برخورد
-    // می‌کردن و حتی خودِ retryها هم به‌جای صبرکردن تا پایان پنجره، دوباره به
-    // همون دیوار می‌خوردن و در نهایت maxRetries تموم می‌شد بدون موفقیت.
     let cooldownUntil = 0;
 
-    // اگه محدودیت «توکن در دقیقه» (نه فقط تعداد درخواست) باشه، صرفاً صبرکردن
-    // بعد از ۴۲۹ کافی نیست: با همون همزمانی قبلی (مثلاً ۳ درخواست هم‌زمان)
-    // دوباره فوری بودجهٔ تازه‌شارژشده رو پر می‌کنیم و دوباره ۴۲۹ می‌خوریم. برای
-    // همین بعد از اولین برخورد به rate limit، همزمانی رو یه پله کم می‌کنیم.
-    // ولی این نباید برای همیشه بمونه: اگه بعد از اون چندتا دسته پشت‌سرهم بدون
-    // مشکل موفق بشن (یعنی محدودیت رد شده)، دوباره کم‌کم همزمانی رو بالا می‌بریم
-    // — وگرنه یه محدودیت لحظه‌ای اول فایل، کل بقیهٔ فایل رو تک‌به‌تک و کند
-    // می‌کرد (دقیقاً مشکلی که با میسترال دیدی).
     let allowedConcurrency = concurrency;
     let successStreak = 0;
     const RECOVERY_STREAK = 4; // بعد از این تعداد موفقیت پشت‌سرهم، یه پله همزمانی/فاصله رو بهتر کن
 
-    // محدودکنندهٔ نرخ واقعی: تضمین می‌کند بین شروع هر دو درخواست متوالی به این
-    // پروایدر (روی همهٔ worker ها با هم) حداقل این‌قدر فاصله باشد — صرف‌نظر از
-    // اینکه قبلاً ۴۲۹ خورده باشیم یا نه. برخی پروایدرها (خصوصاً پلن‌های رایگان/
-    // آزمایشی، مثل بعضی پلن‌های Mistral) سقفی به‌سختی ۱ درخواست در ثانیه دارند؛
-    // حتی concurrency=1 با فاصلهٔ ۱۵۰-۶۰۰ میلی‌ثانیه از آن سقف رد می‌شود. این
-    // محدودکننده به‌جای واکنش «بعد از» خطا، از همون اول با نرخ درست می‌فرسته.
-    // تطبیقی هم هست: با هر rate_limited بیشتر می‌شه، با موفقیت‌های پایدار کم می‌شه.
-    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (
-        knownRps ? Math.ceil(1000 / knownRps) : 500
-    );
+    // محدودکنندهٔ نرخ واقعی
+    const baseMinRequestIntervalMs = options.minRequestIntervalMs || (knownRps && knownRps > 0 ? Math.ceil(1000 / knownRps) : 500);
     let minRequestIntervalMs = baseMinRequestIntervalMs;
     const maxMinRequestIntervalMs = Math.max(3500, baseMinRequestIntervalMs * 2);
     let nextSlotTime = 0;
@@ -225,16 +205,9 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
                 : Math.min(1500 * Math.pow(1.8, attempt), 20000);
 
             if (data.status === 'rate_limited') {
-                console.warn(`۴۲۹ از پروایدر — Retry-After: ${data.retry_after ?? 'ست نشده (از backoff پیش‌فرض استفاده می‌شه)'} ثانیه، پس ${(waitMs / 1000).toFixed(1)} ثانیه صبر می‌کنیم...`);
-                // این کول‌داون فقط مختص این دسته نیست؛ همه‌ی worker ها باید
-                // تا این لحظه صبر کنن، وگرنه دوباره به همین محدودیت می‌خورن.
+                console.warn(`۴۲۹ از پروایدر — Retry-After: ${data.retry_after ?? 'ست نشده (از backoff پیش‌فرض استفاده می‌شه)'} ثانیه، پس تاخیر می‌کنیم.`);
                 cooldownUntil = Math.max(cooldownUntil, Date.now() + waitMs);
-                // همزمانی رو یه پله کم می‌کنیم تا بعد از پایان کول‌داون، دوباره
-                // فوری با همون فشار قبلی بودجهٔ تازه‌شارژشده رو پر نکنیم.
                 allowedConcurrency = Math.max(1, allowedConcurrency - 1);
-                // فاصلهٔ حداقلی بین درخواست‌ها رو هم بیشتر می‌کنیم — چون خیلی
-                // از این محدودیت‌ها واقعاً «X درخواست در ثانیه»ست، نه فقط
-                // «X درخواست در دقیقه»، و concurrency به‌تنهایی این رو حل نمی‌کنه.
                 minRequestIntervalMs = Math.min(minRequestIntervalMs * 1.6, maxMinRequestIntervalMs);
                 successStreak = 0;
             }
@@ -263,12 +236,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         return { texts: data.translated_texts, ok: data.success === true, status: data.status };
     }
 
-    // اگه یه دسته حتی بعد از retryهای داخلی خودش (rate_limited/server_error/
-    // parse_error) هم شکست خورد، ممکنه دلیلش خروجی بدشکل JSON یا رد شدن
-    // درخواست باشه که با تکرار همون ورودی درست نمی‌شه. به‌جای از دست‌دادن کل
-    // دسته، آن را دو نیم می‌کنیم و هر نیمه را با یک درخواست کاملاً تازه امتحان
-    // می‌کنیم — دسته‌های کوچک‌تر (کلید کمتر در JSON) خیلی کمتر مدل رو گیج
-    // می‌کنن. در بدترین حالت به تک‌خط می‌رسه و همون خط ناموفق می‌مونه.
     async function translateBatchWithSplit(batchTexts) {
         let r;
         try {
@@ -298,8 +265,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     async function worker(workerId) {
         let first = true;
         while (nextIndex < batches.length) {
-            // اگه به‌خاطر rate limit همزمانی کم شده و این worker دیگه مجاز نیست
-            // کار جدید بگیره، منتظر می‌مونه (بدون فرستادن درخواست) تا کار تموم بشه.
             while (workerId >= allowedConcurrency && nextIndex < batches.length) {
                 await sleep(500);
             }
@@ -310,9 +275,6 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             }
             first = false;
 
-            // بعد از sleep بالا دوباره چک می‌کنیم: ممکنه توی همین فاصله بقیهٔ
-            // worker ها همهٔ دسته‌ها رو تموم کرده باشن؛ بدون این چک، nextIndex
-            // می‌تونست از طول batches رد بشه و undefined برگردونه.
             if (nextIndex >= batches.length) break;
 
             const myIndex = nextIndex++;
