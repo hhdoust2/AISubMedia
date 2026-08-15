@@ -25,6 +25,36 @@ export function getConfig() {
     return configData;
 }
 
+// هر مدل زیر یک پروایدر می‌تونه RPS متفاوتی از بقیهٔ مدل‌های همون پروایدر
+// داشته باشه؛ برای همین maxRps مال خودِ پروایدر نیست، مال تک‌تک مدل‌هاست.
+// این تابع فرمت قدیمی (رشتهٔ ساده یا maxRps سطح-پروایدر) رو به فرمت جدید
+// [{name, maxRps}] مهاجرت می‌ده تا تنظیمات قبلی کاربرها از دست نره.
+function normalizeModelsList(modelsRaw, legacyMaxRps) {
+    if (!Array.isArray(modelsRaw)) return [];
+    return modelsRaw
+        .map((m) => {
+            if (typeof m === 'string') {
+                const name = m.trim();
+                return name ? { name, maxRps: legacyMaxRps || null } : null;
+            }
+            if (m && typeof m === 'object' && m.name) {
+                const rps = parseFloat(m.maxRps);
+                return { name: String(m.name).trim(), maxRps: (!isNaN(rps) && rps > 0) ? rps : null };
+            }
+            return null;
+        })
+        .filter((m) => m && m.name);
+}
+
+function migrateProvider(rawProvider) {
+    const legacyMaxRps = rawProvider.maxRps ? parseFloat(rawProvider.maxRps) : null;
+    return {
+        name: rawProvider.name || '',
+        url: rawProvider.url || '',
+        models: normalizeModelsList(rawProvider.models, legacyMaxRps),
+    };
+}
+
 export function loadConfig() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -36,7 +66,7 @@ export function loadConfig() {
             if (parsed.providers && typeof parsed.providers === 'object') {
                 for (const [key, value] of Object.entries(parsed.providers)) {
                     if (RESERVED_KEYS.has(key)) continue;
-                    configData.providers[key] = value;
+                    configData.providers[key] = migrateProvider(value);
                 }
             }
         } catch (e) {
@@ -87,19 +117,23 @@ export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
         throw new Error('این نام پروایدر مجاز نیست.');
     }
 
+    const parsedMaxRps = maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
+
     if (!configData.providers[key]) {
         configData.providers[key] = { name, url, models: [] };
     }
-    modelList.forEach((model) => {
-        if (!configData.providers[key].models.includes(model)) {
-            configData.providers[key].models.push(model);
+    modelList.forEach((modelName) => {
+        const existingModel = configData.providers[key].models.find((m) => m.name === modelName);
+        if (existingModel) {
+            // مدل از قبل بود: فقط اگر این‌بار RPS جدید وارد شده، آپدیتش کن؛
+            // وگرنه RPS قبلی همون مدل دست‌نخورده می‌مونه.
+            if (parsedMaxRps) existingModel.maxRps = parsedMaxRps;
+        } else {
+            configData.providers[key].models.push({ name: modelName, maxRps: parsedMaxRps });
         }
     });
     configData.providers[key].url = url;
     configData.providers[key].name = configData.providers[key].name || name;
-    if (maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0) {
-        configData.providers[key].maxRps = parseFloat(maxRps);
-    }
     saveConfig();
 
     return { key, addedCount: modelList.length, providerName: configData.providers[key].name };
@@ -141,7 +175,7 @@ export function importConfig(jsonText) {
 
     Object.keys(imported).forEach((k) => {
         if (RESERVED_KEYS.has(k)) return;
-        next.providers[k] = imported[k];
+        next.providers[k] = migrateProvider(imported[k]);
     });
 
     configData = next;
