@@ -456,10 +456,19 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, t
         return list(texts), "ok", None
 
     prompt = _AI_TRANSLATE_PROMPT_TEMPLATE.format(payload=json.dumps(non_empty, ensure_ascii=False))
+    # تخمینِ تعدادِ توکنِ لازم برای پاسخ: تقریباً هم‌قدِ حجمِ متنِ ورودیه (چون
+    # ترجمه معمولاً طولِ مشابهی داره) + کمی فضای اضافه برای ساختارِ JSON و
+    # کلیدها. بدونِ max_tokens، بعضی پروایدرها (خصوصاً OpenRouter) موقعِ
+    # پیش‌محاسبه‌ی هزینه فرضِ بدترین‌حالتِ مدل (که برای مدل‌های جدید می‌تونه
+    # ده‌ها هزار توکن باشه) رو می‌ذارن و حتی با اعتبارِ کافی برای یه ترجمه‌ی
+    # معمولی، با خطای 402 (Payment Required) درخواست رو رد می‌کنن.
+    estimated_chars = sum(len(v) for v in non_empty.values())
+    max_tokens = min(8000, max(1024, estimated_chars // 2 + 512))
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.3,
+        "max_tokens": max_tokens,
     }
     if use_json_mode:
         payload["response_format"] = {"type": "json_object"}
