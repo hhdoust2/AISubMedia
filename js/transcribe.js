@@ -9,7 +9,13 @@ import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js'
 // هدف: رفع مشکل «زیرنویس ��ند ثانیه زودتر از دیالوگ می‌آید» که وقتی قبل از
 // حرف‌زدن سکوت یا موسیقی هست، Whisper گاهی آن را هم جزو segment حساب می‌کند.
 function refineSegmentStarts(segments, words) {
-    if (!Array.isArray(words) || words.length === 0) return segments;
+    if (!Array.isArray(words) || words.length === 0) {
+        console.warn(
+            '[refineSegmentStarts] این پروایدر تایم‌استمپ کلمه‌به‌کلمه (words) برنگردانده؛ ' +
+            'زمان شروع زیرنویس‌ها دست‌نخورده (خام از Whisper) باقی می‌ماند.'
+        );
+        return segments;
+    }
     return segments.map((seg) => {
         const overlapping = words.filter((w) => w.start < seg.end && w.end > seg.start);
         if (overlapping.length === 0) return seg;
@@ -19,6 +25,81 @@ function refineSegmentStarts(segments, words) {
         }
         return seg;
     });
+}
+
+// Whisper تشخیص گوینده (speaker diarization) ندارد و فقط بر اساس سکوت segment
+// می‌سازد. وقتی چند نفر بدون مکث واضح پشت‌سر هم حرف می‌زنند، کل تبادل ممکن
+// است یک segment طولانی و چندجمله‌ای بشود که از اول تا آخرش روی صفحه می‌ماند
+// و صفحه را پر می‌کند. این تابع چنین segmentهایی را بر اساس علائم پایان جمله
+// می‌شکند و — در صورت وجود تایم‌استمپ کلمه‌به‌کلمه — زمان هر تکه را از روی
+// کلمات واقعی حساب می‌کند (نه فقط تقسیم مساوی زمان کل).
+const SENTENCE_SPLIT_RE = /(?<=[.!?؟…])\s+(?=\S)/;
+const MIN_SPLIT_DURATION = 3.2; // ثانیه — segmentهای کوتاه‌تر شکسته نمی‌شوند
+const MIN_SPLIT_CHARS = 70; // segmentهای کوتاه‌تر معمولاً یک جمله‌اند، نیازی به شکستن نیست
+
+function splitLongSegments(segments, words) {
+    const hasWords = Array.isArray(words) && words.length > 0;
+    const result = [];
+
+    segments.forEach((seg) => {
+        const duration = seg.end - seg.start;
+        const text = (seg.text || '').trim();
+
+        if (duration < MIN_SPLIT_DURATION || text.length < MIN_SPLIT_CHARS) {
+            result.push(seg);
+            return;
+        }
+
+        const parts = text.split(SENTENCE_SPLIT_RE).map((p) => p.trim()).filter(Boolean);
+        if (parts.length < 2) {
+            result.push(seg);
+            return;
+        }
+
+        // روش دقیق: تطبیق هر تکه با کلمات واقعی خودش (وقتی words موجود است)
+        if (hasWords) {
+            const segWords = words
+                .filter((w) => w.start < seg.end && w.end > seg.start)
+                .sort((a, b) => a.start - b.start);
+            const wordCounts = parts.map((p) => p.split(/\s+/).filter(Boolean).length);
+            const totalWords = wordCounts.reduce((a, b) => a + b, 0);
+
+            // اگر تعداد کلمه‌های واقعی به‌قدر کافی نزدیک تعداد کلمه‌های متن باشد
+            // (کمی اغماض برای اختلاف جزئی توکن‌سازی)، از تایم‌بندی دقیق استفاده کن.
+            if (segWords.length > 0 && Math.abs(segWords.length - totalWords) <= Math.ceil(totalWords * 0.15) + 2) {
+                let wIdx = 0;
+                let cursor = seg.start;
+                parts.forEach((p, i) => {
+                    const isLast = i === parts.length - 1;
+                    const count = isLast ? (segWords.length - wIdx) : wordCounts[i];
+                    const sliceWords = segWords.slice(wIdx, wIdx + count);
+                    wIdx += count;
+                    const chunkStart = cursor;
+                    const lastWord = sliceWords[sliceWords.length - 1];
+                    const chunkEnd = isLast ? seg.end : Math.min(seg.end, Math.max(lastWord ? lastWord.end : chunkStart, chunkStart + 0.4));
+                    cursor = chunkEnd;
+                    result.push({ ...seg, start: chunkStart, end: chunkEnd, text: p });
+                });
+                return;
+            }
+        }
+
+        // fallback: بدون تایم‌استمپ کلمه‌به‌کلمهٔ قابل‌اتکا، زمان را متناسب با
+        // طول کاراکتر هر تکه از کل بازهٔ segment سهم می‌دهیم (دقیق نیست ولی
+        // بهتر از یک زیرنویس طولانی‌ست که کل صفحه را پر می‌کند).
+        const totalChars = parts.reduce((a, p) => a + p.length, 0) || 1;
+        let cursor = seg.start;
+        const dur = seg.end - seg.start;
+        parts.forEach((p, i) => {
+            const isLast = i === parts.length - 1;
+            const chunkStart = cursor;
+            const chunkEnd = isLast ? seg.end : Math.min(seg.end, cursor + dur * (p.length / totalChars));
+            cursor = chunkEnd;
+            result.push({ ...seg, start: chunkStart, end: chunkEnd, text: p });
+        });
+    });
+
+    return result;
 }
 
 /**
@@ -135,7 +216,8 @@ export function processAudioFile(file, ctx) {
                 throw new Error('ساختار پاسخ زیرنویس معتبر نیست.');
             }
 
-            const segments = refineSegmentStarts(data.segments, data.words);
+            const refinedSegments = refineSegmentStarts(data.segments, data.words);
+            const segments = splitLongSegments(refinedSegments, data.words);
 
             let srt;
             if (isGoogleTranslate) {
