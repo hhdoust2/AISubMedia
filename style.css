@@ -470,34 +470,39 @@ button.submit-btn:disabled { background: rgba(255, 255, 255, 0.06); color: var(-
     #tabContentProcess.active,
     #tabContentTranslate.active {
         display: grid;
-        grid-template-columns: 400px 1fr;
-        column-gap: 28px;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
         align-items: start;
     }
     #warningBox { grid-column: 1 / -1; }
 
-    .process-config { display: flex; flex-direction: column; min-width: 0; }
+    .process-config { display: flex; flex-direction: column; min-width: 0; grid-column: 1; }
 
+    /* پنل نتیجه دیگر کل ارتفاع را پر نمی‌کند — دقیقاً مثل یه section-box
+       معمولی، فقط به‌اندازه‌ی محتوای خودش (نه بیشتر) جا می‌گیرد. */
     .process-result {
         display: flex;
         flex-direction: column;
-        align-self: stretch;
-        min-height: 380px;
-        background: rgba(255, 255, 255, 0.025);
-        border: 1px solid var(--glass-border);
-        border-radius: 20px;
-        padding: 22px;
+        grid-column: 2;
+        background: var(--glass);
+        border: 1px solid var(--glass-border-soft);
+        border-radius: var(--r-box);
+        padding: 16px;
     }
-    .process-result .download-btn { margin-bottom: 14px; }
-    .process-result .loader { margin: 40px auto; }
+    .process-result .progress-container { margin: 0 0 10px; }
+    .process-result .download-btn { margin-bottom: 10px; }
+    .process-result .loader { margin: 12px auto; }
+
+    /* زیرنویس داخل یک کادر مستقل با ارتفاع ثابت و نوار پیمایش خودش،
+       نه یک پنل کشیده که کل فضای زیر تنظیمات را اشغال کند. */
     .process-result #output,
     .process-result #srtOutput {
-        flex: 1;
-        max-height: none;
-        background: transparent;
-        border: none;
-        padding: 0;
-        margin-top: 0;
+        margin-top: 8px;
+        max-height: 220px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--glass-border-soft);
+        border-radius: var(--r-box);
+        padding: 12px;
     }
     #output:empty, #srtOutput:empty {
         display: flex !important;
@@ -505,18 +510,18 @@ button.submit-btn:disabled { background: rgba(255, 255, 255, 0.06); color: var(-
         align-items: center;
         justify-content: center;
         text-align: center;
-        min-height: 260px;
+        min-height: 120px;
         color: var(--text-faint);
-        gap: 10px;
+        gap: 8px;
     }
     #output:empty::before, #srtOutput:empty::before {
         content: "";
-        width: 44px; height: 44px;
+        width: 32px; height: 32px;
         border-radius: 50%;
         background: rgba(139, 124, 246, 0.1);
         border: 1px solid rgba(139, 124, 246, 0.25);
     }
-    #output:empty::after, #srtOutput:empty::after { content: "در انتظار پردازش — خروجی اینجا نمایش داده می‌شود"; font-size: 12.5px; }
+    #output:empty::after, #srtOutput:empty::after { content: "در انتظار پردازش — خروجی اینجا نمایش داده می‌شود"; font-size: 12px; }
 
     #tabContentSettings.active {
         display: grid;
@@ -532,12 +537,4 @@ button.submit-btn:disabled { background: rgba(255, 255, 255, 0.06); color: var(-
     .section-box:hover { border-color: rgba(139, 124, 246, 0.35); background: rgba(255, 255, 255, 0.055); }
 }
 
-@media (min-width: 1240px) {
-    #tabContentProcess.active,
-    #tabContentTranslate.active { grid-template-columns: 460px 1fr; }
-}
 
-@media (min-width: 1600px) {
-    #tabContentProcess.active,
-    #tabContentTranslate.active { grid-template-columns: 500px 1fr; }
-}
