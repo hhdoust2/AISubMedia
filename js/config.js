@@ -139,6 +139,48 @@ export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
     return { key, addedCount: modelList.length, providerName: configData.providers[key].name };
 }
 
+// حذف کامل یک پروایدر (همراه با همه‌ی مدل‌های ثبت‌شده‌ی زیرش).
+export function deleteProvider(key) {
+    delete configData.providers[key];
+    saveConfig();
+}
+
+// حذف یک مدل مشخص از یک پروایدر. اگر آخرین مدل آن پروایدر بود، خودِ
+// پروایدر هم (چون دیگر مدلی ندارد) حذف می‌شود.
+export function deleteModel(providerKey, modelName) {
+    const prov = configData.providers[providerKey];
+    if (!prov) return;
+    prov.models = (prov.models || []).filter((m) => m.name !== modelName);
+    if (prov.models.length === 0) {
+        delete configData.providers[providerKey];
+    }
+    saveConfig();
+}
+
+// آپدیت حداکثر Requests/Second یک مدل مشخص. مقدار خالی/نامعتبر یعنی
+// محدودیتی ثبت نشود (null).
+export function updateModelRps(providerKey, modelName, maxRps) {
+    const prov = configData.providers[providerKey];
+    if (!prov) return;
+    const model = (prov.models || []).find((m) => m.name === modelName);
+    if (!model) return;
+    const parsed = maxRps !== '' && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
+    model.maxRps = parsed;
+    saveConfig();
+}
+
+// آپدیت Base URL یک پروایدر موجود.
+export function updateProviderUrl(key, newUrl) {
+    const prov = configData.providers[key];
+    if (!prov) throw new Error('پروایدر پیدا نشد.');
+    const url = newUrl.trim();
+    if (!/^https:\/\//i.test(url)) {
+        throw new Error('اندپوینت باید با https:// شروع شود.');
+    }
+    prov.url = url;
+    saveConfig();
+}
+
 export function addApiKey(label, key) {
     const trimmedLabel = label.trim();
     const trimmedKey = key.trim();
