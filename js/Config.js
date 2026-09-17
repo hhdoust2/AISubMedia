@@ -6,6 +6,8 @@
 
 const STORAGE_KEY = 'ai_config_data';
 
+// کلیدهایی که هرگز نباید به‌عنوان نام پروایدر پذیرفته شوند — جلوگیری از
+// آلودگی پروتوتایپ (prototype pollution) هنگام وارد کردن یک فایل JSON دستکاری‌شده.
 const RESERVED_KEYS = new Set(['version', 'export_date', 'api_keys', '__proto__', 'constructor', 'prototype']);
 
 function emptyConfig() {
@@ -17,46 +19,40 @@ function emptyConfig() {
     };
 }
 
-// هر مدل زیر یک پروایدر می‌تونه RPS متفاوتی از بقیهٔ مدل‌های همون پروایدر
-// داشته باشه؛ برای همین maxRps مال خودِ پروایدر نیست، مال تک‌تک مدل‌هاست.
-function normalizeModelEntry(entry, legacyMaxRps) {
-    if (typeof entry === 'string') {
-        return { name: entry, maxRps: legacyMaxRps || null };
-    }
-    if (entry && typeof entry === 'object') {
-        return {
-            name: String(entry.name || '').trim(),
-            maxRps: entry.maxRps ? parseFloat(entry.maxRps) : null,
-        };
-    }
-    return null;
-}
-
-function migrateProvider(rawProvider) {
-    const legacyMaxRps = rawProvider.maxRps ? parseFloat(rawProvider.maxRps) : null;
-    const models = Array.isArray(rawProvider.models)
-        ? rawProvider.models
-            .map((m) => normalizeModelEntry(m, legacyMaxRps))
-            .filter((m) => m && m.name)
-        : [];
-    return {
-        name: rawProvider.name || '',
-        url: rawProvider.url || '',
-        models,
-    };
-}
-
 let configData = emptyConfig();
 
 export function getConfig() {
     return configData;
 }
 
-export function findModelSettings(providerKey, modelName) {
-    const provider = configData.providers[providerKey];
-    if (!provider) return { maxRps: null };
-    const found = provider.models.find((m) => m.name === modelName);
-    return found ? { maxRps: found.maxRps || null } : { maxRps: null };
+// هر مدل زیر یک پروایدر می‌تونه RPS متفاوتی از بقیهٔ مدل‌های همون پروایدر
+// داشته باشه؛ برای همین maxRps مال خودِ پروایدر نیست، مال تک‌تک مدل‌هاست.
+// این تابع فرمت قدیمی (رشتهٔ ساده یا maxRps سطح-پروایدر) رو به فرمت جدید
+// [{name, maxRps}] مهاجرت می‌ده تا تنظیمات قبلی کاربرها از دست نره.
+function normalizeModelsList(modelsRaw, legacyMaxRps) {
+    if (!Array.isArray(modelsRaw)) return [];
+    return modelsRaw
+        .map((m) => {
+            if (typeof m === 'string') {
+                const name = m.trim();
+                return name ? { name, maxRps: legacyMaxRps || null } : null;
+            }
+            if (m && typeof m === 'object' && m.name) {
+                const rps = parseFloat(m.maxRps);
+                return { name: String(m.name).trim(), maxRps: (!isNaN(rps) && rps > 0) ? rps : null };
+            }
+            return null;
+        })
+        .filter((m) => m && m.name);
+}
+
+function migrateProvider(rawProvider) {
+    const legacyMaxRps = rawProvider.maxRps ? parseFloat(rawProvider.maxRps) : null;
+    return {
+        name: rawProvider.name || '',
+        url: rawProvider.url || '',
+        models: normalizeModelsList(rawProvider.models, legacyMaxRps),
+    };
 }
 
 export function loadConfig() {
@@ -85,6 +81,8 @@ export function saveConfig() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(configData));
 }
 
+// نام پروایدر را نرمال می‌کند تا تفاوت‌های ظاهری نامرئی (فاصله، حروف عربی/فارسی
+// مشابه مثل ي/ی یا ك/ک) باعث ساخته‌شدن یک پروایدر تکراری نشوند.
 function normalizeProviderName(str) {
     return str
         .trim()
@@ -101,59 +99,39 @@ export function findExistingProviderKey(name) {
     );
 }
 
-export function addProvider(rawName, baseUrl, modelsInput, maxRps = null) {
+export function addProvider(rawName, baseUrl, modelsCsv, maxRps = null) {
     const name = rawName.trim();
     const url = baseUrl.trim();
+    const modelList = modelsCsv.split(',').map((m) => m.trim()).filter((m) => m.length > 0);
 
-    if (!name || !url) {
-        throw new Error('لطفاً نام پروایدر و اندپوینت را پر کنید[span_0](start_span)[span_0](end_span).');
+    if (!name || !url || modelList.length === 0) {
+        throw new Error('لطفاً نام پروایدر، اندپوینت و حداقل یک مدل را پر کنید.');
     }
     if (!/^https:\/\//i.test(url)) {
-        throw new Error('اندپوینت باید با https:// شروع شود[span_1](start_span)[span_1](end_span).');
-    }
-
-    // تبدیل ورودی مدل‌ها به آرایه‌ای از آبجکت‌ها (پشتیبانی از رشته یا ساختار دارای maxRps مجزا)
-    let modelList = [];
-    if (Array.isArray(modelsInput)) {
-        modelList = modelsInput;
-    } else if (typeof modelsInput === 'string') {
-        modelList = modelsInput.split(',').map((m) => {
-            const trimmed = m.trim();
-            return trimmed ? { name: trimmed, maxRps: maxRps && !isNaN(parseFloat(maxRps)) ? parseFloat(maxRps) : null } : null;
-        }).filter(Boolean);
-    }
-
-    if (modelList.length === 0) {
-        throw new Error('حداقل یک مدل باید وارد شود[span_2](start_span)[span_2](end_span).');
+        throw new Error('اندپوینت باید با https:// شروع شود.');
     }
 
     const existingKey = findExistingProviderKey(name);
     const key = existingKey || normalizeProviderName(name);
     if (RESERVED_KEYS.has(key)) {
-        throw new Error('این نام پروایدر مجاز نیست[span_3](start_span)[span_3](end_span).');
+        throw new Error('این نام پروایدر مجاز نیست.');
     }
+
+    const parsedMaxRps = maxRps && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
 
     if (!configData.providers[key]) {
         configData.providers[key] = { name, url, models: [] };
     }
-
-    // به‌روزرسانی یا اضافه کردن مدل‌ها به همراه maxRps اختصاصی هرکدام
-    modelList.forEach((incomingModel) => {
-        const modelName = typeof incomingModel === 'string' ? incomingModel : incomingModel.name;
-        const modelRps = incomingModel.maxRps !== undefined ? (incomingModel.maxRps ? parseFloat(incomingModel.maxRps) : null) : (maxRps ? parseFloat(maxRps) : null);
-
-        if (!modelName) return;
-
+    modelList.forEach((modelName) => {
         const existingModel = configData.providers[key].models.find((m) => m.name === modelName);
         if (existingModel) {
-            if (modelRps !== null) {
-                existingModel.maxRps = modelRps;
-            }
+            // مدل از قبل بود: فقط اگر این‌بار RPS جدید وارد شده، آپدیتش کن؛
+            // وگرنه RPS قبلی همون مدل دست‌نخورده می‌مونه.
+            if (parsedMaxRps) existingModel.maxRps = parsedMaxRps;
         } else {
-            configData.providers[key].models.push({ name: modelName, maxRps: modelRps });
+            configData.providers[key].models.push({ name: modelName, maxRps: parsedMaxRps });
         }
     });
-
     configData.providers[key].url = url;
     configData.providers[key].name = configData.providers[key].name || name;
     saveConfig();
@@ -161,11 +139,53 @@ export function addProvider(rawName, baseUrl, modelsInput, maxRps = null) {
     return { key, addedCount: modelList.length, providerName: configData.providers[key].name };
 }
 
+// حذف کامل یک پروایدر (همراه با همه‌ی مدل‌های ثبت‌شده‌ی زیرش).
+export function deleteProvider(key) {
+    delete configData.providers[key];
+    saveConfig();
+}
+
+// حذف یک مدل مشخص از یک پروایدر. اگر آخرین مدل آن پروایدر بود، خودِ
+// پروایدر هم (چون دیگر مدلی ندارد) حذف می‌شود.
+export function deleteModel(providerKey, modelName) {
+    const prov = configData.providers[providerKey];
+    if (!prov) return;
+    prov.models = (prov.models || []).filter((m) => m.name !== modelName);
+    if (prov.models.length === 0) {
+        delete configData.providers[providerKey];
+    }
+    saveConfig();
+}
+
+// آپدیت حداکثر Requests/Second یک مدل مشخص. مقدار خالی/نامعتبر یعنی
+// محدودیتی ثبت نشود (null).
+export function updateModelRps(providerKey, modelName, maxRps) {
+    const prov = configData.providers[providerKey];
+    if (!prov) return;
+    const model = (prov.models || []).find((m) => m.name === modelName);
+    if (!model) return;
+    const parsed = maxRps !== '' && !isNaN(parseFloat(maxRps)) && parseFloat(maxRps) > 0 ? parseFloat(maxRps) : null;
+    model.maxRps = parsed;
+    saveConfig();
+}
+
+// آپدیت Base URL یک پروایدر موجود.
+export function updateProviderUrl(key, newUrl) {
+    const prov = configData.providers[key];
+    if (!prov) throw new Error('پروایدر پیدا نشد.');
+    const url = newUrl.trim();
+    if (!/^https:\/\//i.test(url)) {
+        throw new Error('اندپوینت باید با https:// شروع شود.');
+    }
+    prov.url = url;
+    saveConfig();
+}
+
 export function addApiKey(label, key) {
     const trimmedLabel = label.trim();
     const trimmedKey = key.trim();
     if (!trimmedLabel || !trimmedKey) {
-        throw new Error('لطفاً برچسب کلید و خود کلید را وارد کنید[span_4](start_span)[span_4](end_span).');
+        throw new Error('لطفاً برچسب کلید و خود کلید را وارد کنید.');
     }
     configData.api_keys.push({ label: trimmedLabel, key: trimmedKey });
     saveConfig();
@@ -188,7 +208,7 @@ export function exportConfig() {
 export function importConfig(jsonText) {
     const imported = JSON.parse(jsonText);
     if (!imported || typeof imported !== 'object') {
-        throw new Error('ساختار فایل نامعتبر است[span_5](start_span)[span_5](end_span).');
+        throw new Error('ساختار فایل نامعتبر است.');
     }
     const next = emptyConfig();
     next.version = imported.version || '1.0';

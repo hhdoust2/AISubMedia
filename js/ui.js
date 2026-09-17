@@ -3,6 +3,7 @@ import { fillSelectOptions, baseFileName, downloadTextFile } from './utils.js';
 import {
     loadConfig, getConfig, saveConfig,
     addProvider, addApiKey, deleteApiKey,
+    deleteProvider, deleteModel, updateModelRps, updateProviderUrl,
     exportConfig, importConfig,
 } from './config.js';
 import { parseSrtBlocks, buildSrtFromBlocks } from './srt.js';
@@ -117,6 +118,13 @@ export function initApp() {
     const saveKeyBtn = document.getElementById('saveKeyBtn');
     const deleteKeyBtn = document.getElementById('deleteKeyBtn');
     const keyListSelect = document.getElementById('keyListSelect');
+
+    const editProviderSelect = document.getElementById('editProviderSelect');
+    const editProviderDetails = document.getElementById('editProviderDetails');
+    const editProviderUrl = document.getElementById('editProviderUrl');
+    const updateProviderUrlBtn = document.getElementById('updateProviderUrlBtn');
+    const editModelsList = document.getElementById('editModelsList');
+    const deleteProviderBtn = document.getElementById('deleteProviderBtn');
 
     const exportBtn = document.getElementById('exportBtn');
     const importBtn = document.getElementById('importBtn');
@@ -233,8 +241,100 @@ export function initApp() {
         if (keyWhisperSelect && localStorage.getItem('assigned_key_whisper')) keyWhisperSelect.value = localStorage.getItem('assigned_key_whisper');
         if (keyTranslateSelect && localStorage.getItem('assigned_key_translate')) keyTranslateSelect.value = localStorage.getItem('assigned_key_translate');
 
+        // ---------- بخش ویرایش/حذف پروایدر و مدل ----------
+        if (editProviderSelect) {
+            const previouslySelected = editProviderSelect.value;
+            const editProvItems = providerKeys.map((pKey) => ({
+                value: pKey,
+                label: configData.providers[pKey].name || pKey,
+            }));
+            fillSelectOptions(editProviderSelect, '-- انتخاب پروایدر --', editProvItems);
+            // اگر پروایدر قبلاً انتخاب‌شده هنوز وجود داشت، انتخابش را حفظ کن
+            if (previouslySelected && configData.providers[previouslySelected]) {
+                editProviderSelect.value = previouslySelected;
+            }
+            renderEditProviderDetails();
+        }
+
         updateSrtTabDropdowns();
     }
+
+    // نمایش جزئیات (Base URL + لیست مدل‌ها) پروایدرِ انتخاب‌شده در بخش ویرایش،
+    // با دکمه‌ی حذف مستقل برای هر مدل و یک دکمه‌ی حذف کل پروایدر.
+    function renderEditProviderDetails() {
+        if (!editProviderSelect || !editProviderDetails || !editModelsList) return;
+        const key = editProviderSelect.value;
+        const configData = getConfig();
+        const prov = key ? configData.providers[key] : null;
+
+        if (!prov) {
+            editProviderDetails.style.display = 'none';
+            editModelsList.textContent = '';
+            return;
+        }
+
+        editProviderDetails.style.display = 'block';
+        if (editProviderUrl) editProviderUrl.value = prov.url || '';
+
+        editModelsList.textContent = '';
+        (prov.models || []).forEach((modelObj) => {
+            const row = document.createElement('div');
+            row.className = 'row-group model-row';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'model-row-name';
+            nameSpan.textContent = modelObj.name;
+            nameSpan.title = modelObj.name;
+
+            const rpsInput = document.createElement('input');
+            rpsInput.type = 'text';
+            rpsInput.className = 'model-row-rps';
+            rpsInput.placeholder = 'RPS';
+            rpsInput.value = modelObj.maxRps != null ? String(modelObj.maxRps) : '';
+            rpsInput.addEventListener('change', () => {
+                updateModelRps(key, modelObj.name, rpsInput.value);
+            });
+
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'delete-btn btn-sm';
+            delBtn.textContent = 'حذف';
+            delBtn.addEventListener('click', () => {
+                if (!confirm(`مدل «${modelObj.name}» حذف شود؟`)) return;
+                deleteModel(key, modelObj.name);
+                updateDropdowns();
+            });
+
+            row.appendChild(nameSpan);
+            row.appendChild(rpsInput);
+            row.appendChild(delBtn);
+            editModelsList.appendChild(row);
+        });
+    }
+
+    if (editProviderSelect) editProviderSelect.addEventListener('change', renderEditProviderDetails);
+
+    if (updateProviderUrlBtn) updateProviderUrlBtn.addEventListener('click', () => {
+        const key = editProviderSelect ? editProviderSelect.value : '';
+        if (!key) return;
+        try {
+            updateProviderUrl(key, editProviderUrl.value);
+            alert('آدرس پروایدر بروزرسانی شد.');
+            updateDropdowns();
+        } catch (err) {
+            alert(err.message);
+        }
+    });
+
+    if (deleteProviderBtn) deleteProviderBtn.addEventListener('click', () => {
+        const key = editProviderSelect ? editProviderSelect.value : '';
+        if (!key) return;
+        const configData = getConfig();
+        const provName = configData.providers[key]?.name || key;
+        if (!confirm(`کل پروایدر «${provName}» به همراه همه‌ی مدل‌هایش حذف شود؟ این عمل قابل بازگشت نیست.`)) return;
+        deleteProvider(key);
+        updateDropdowns();
+    });
 
     function updateSrtModelSelect() {
         const configData = getConfig();
