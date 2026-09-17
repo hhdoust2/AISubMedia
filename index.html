@@ -74,6 +74,7 @@
                             <label class="check-row">
                                 <input type="checkbox" id="googleTranslateCheckbox" class="checkbox-input">
                                 <span>🌍 ترجمه زیرنویس به فارسی با گوگل ترنسلیت 
+
 </span>
                             </label>
                         </div>
@@ -186,7 +187,7 @@
                     <span class="section-title">📡 ثبت پروایدر و مدل جدید</span>
                     <div class="stack">
                         <input type="text" id="provName" placeholder="نام پروایدر (مثلا: Groq)">
-                        <input type="text" id="provBaseUrl" placeholder="Base URL (اندپوینت)">
+                        <input type="text" id="provBaseUrl" placeholder="Base URL (اندپوینت)" value="https://ai-reverse.aialsabela.workers.dev/groq/openai/v1">
                         <input type="text" id="provModel" placeholder="نام مدل — چند مدل را با کاما جدا کنید (مثلا: model-a, model-b)">
                         <input type="text" id="provMaxRps" placeholder="حداکثر Requests/Second (اختیاری، از داشبورد پروایدر) — مثلا 0.07">
                         <button type="button" class="btn-primary" id="saveEndpointBtn">افزودن پروایدر به لیست ➕</button>
@@ -211,6 +212,29 @@
                             <option value="">-- لیست کلیدها --</option>
                         </select>
                         <button type="button" class="delete-btn" id="deleteKeyBtn">حذف 🗑️</button>
+                    </div>
+                </div>
+
+                <div class="section-box section-box--wide">
+                    <span class="section-title">✏️ ویرایش / حذف پروایدر و مدل</span>
+                    <div class="field field--last">
+                        <label for="editProviderSelect" class="field-label">انتخاب پروایدر</label>
+                        <select id="editProviderSelect"><option value="">-- انتخاب پروایدر --</option></select>
+                    </div>
+
+                    <div id="editProviderDetails" style="display: none; margin-top: 12px;">
+                        <div class="field">
+                            <label for="editProviderUrl" class="field-label">Base URL</label>
+                            <div class="row-group">
+                                <input type="text" id="editProviderUrl" class="grow">
+                                <button type="button" class="btn-primary btn-auto" id="updateProviderUrlBtn">بروزرسانی</button>
+                            </div>
+                        </div>
+
+                        <div class="field-label" style="margin-top: 4px;">مدل‌های ثبت‌شده</div>
+                        <div id="editModelsList" class="stack stack--tight"></div>
+
+                        <button type="button" class="delete-btn" id="deleteProviderBtn" style="width: 100%; margin-top: 4px;">حذف کل این پروایدر 🗑️</button>
                     </div>
                 </div>
 

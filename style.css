@@ -253,6 +253,29 @@ select option { background-color: #16151c; color: var(--text); }
 
 .section-box--wide { margin-bottom: 28px; }
 
+.model-row { margin-bottom: 8px; }
+.model-row-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.model-row-rps {
+    width: 64px;
+    flex: none;
+    padding: 8px;
+    font-size: 11px;
+    text-align: center;
+}
+.delete-btn.btn-sm {
+    padding: 7px 10px;
+    font-size: 11px;
+    flex: none;
+}
+
 /* --- انتخاب نوع ورودی (آپلود/لینک) --- */
 .input-type-selector {
     display: flex;
@@ -531,7 +554,8 @@ button.submit-btn:disabled { background: rgba(255, 255, 255, 0.06); color: var(-
     }
     #tabContentSettings.active > .section-box:nth-child(1) { grid-column: 1; }
     #tabContentSettings.active > .section-box:nth-child(2) { grid-column: 2; }
-    #tabContentSettings.active > .section-box:nth-child(3) { grid-column: 1 / -1; margin-bottom: 0; }
+    #tabContentSettings.active > .section-box:nth-child(3) { grid-column: 1 / -1; }
+    #tabContentSettings.active > .section-box:nth-child(4) { grid-column: 1 / -1; margin-bottom: 0; }
 
     .section-box { transition: border-color 0.25s ease, background-color 0.25s ease; }
     .section-box:hover { border-color: rgba(139, 124, 246, 0.35); background: rgba(255, 255, 255, 0.055); }
