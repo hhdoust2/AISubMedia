@@ -263,7 +263,7 @@ select option { background-color: #16151c; color: var(--text); }
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.model-row-rps {
+.model-row .model-row-rps {
     width: 64px;
     flex: none;
     padding: 8px;
