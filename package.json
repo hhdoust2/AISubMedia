@@ -1,0 +1,7 @@
+{
+  "name": "aisubmedia",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
