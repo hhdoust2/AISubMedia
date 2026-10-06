@@ -397,11 +397,7 @@ _AI_TRANSLATE_PROMPT_TEMPLATE = """شما یک مترجم حرفه‌ای زیر
 
 
 def _build_ai_endpoint(provider_url):
-    cleaned = provider_url.rstrip("/")
-    if not cleaned.endswith("/chat/completions"):
-        cleaned = cleaned + "/chat/completions"
-    # آدرس مستقیم پروایدر را (در صورت شناخته‌بودن هاست) از طریق ورکر عبور می‌دهیم
-    return _route_through_worker(cleaned)
+    return _route_through_worker(provider_url)
 
 
 def _extract_message_text(message):
