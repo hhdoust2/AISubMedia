@@ -590,13 +590,13 @@ export function initApp() {
                 const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text }));
                 translatedSrt = buildSrtFromBlocks(translatedBlocks);
                 if (gResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در [...];`
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل/MyMemory در دسترس نبود؛ متن اصلی باقی ماند).`;
                 }
             } else {
                 const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { maxRps: tProvMaxRps });
                 translatedSrt = trResult.text;
                 if (trResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شد);`
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شد).`;
                 }
             }
 
