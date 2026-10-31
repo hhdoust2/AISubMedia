@@ -381,7 +381,7 @@ export function initApp() {
         try {
             const result = addProvider(provName.value, provBaseUrl.value, provModel.value, provMaxRps.value);
             provName.value = '';
-            provBaseUrl.value = 'https://ai-reverse.aialsabela.workers.dev/groq/openai/v1';
+            provBaseUrl.value = '';
             provModel.value = '';
             provMaxRps.value = '';
             updateDropdowns();
