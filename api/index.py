@@ -4,7 +4,6 @@
 مسئولیت‌ها:
   - /translate-google : ترجمه دسته‌ای متن با گوگل/مای‌مموری (پروکسی سمت سرور)
   - /translate-ai      : ترجمه هوشمند متن با هر پروایدر سازگار با OpenAI (پروکسی سمت سرور)
-  - /transcribe-aac    : مسیر قدیمی/پشتیبان تبدیل صوت با کلید سرور (فرانت‌اند فعلی از آن استفاده نمی‌کند)
 
 نکات امنیتی که نسبت به نسخه قبلی اصلاح شده‌اند (به بخش README مراجعه کنید):
   1) SSRF: قبل از هر تماس خروجی به آدرسی که کاربر مشخص کرده (provider_url)، آدرس
@@ -15,11 +14,17 @@
      Werkzeug در محیط عمومی یک ریسک جدی است).
   4) محدودیت حجم درخواست (MAX_CONTENT_LENGTH) و محدودیت تعداد/طول متن‌های
      ارسالی برای جلوگیری از سوءاستفاده و اتمام منابع سرور.
-  5) دامنه‌ی نادرست ورکر در مسیر transcribe-aac (که با AI_PROXY_WORKER اصلی
-     ناسازگار بود) اصلاح شد.
-  6) استفاده از logging به‌جای print.
+  5) احراز هویت بک‌اند با BACKEND_API_KEY: هر دو مسیر ترجمه فقط با هدر
+     X-API-Key درست جواب می‌دهند، پس غریبه‌ای که آدرس ورسل را پیدا کند
+     نمی‌تواند از سهمیه اجرای سرورلس تو استفاده کند. کلید پروایدر (Groq و...)
+     همچنان مال خود کاربر است و جداگانه در مرورگر ذخیره می‌شود.
+  6) مسیر قدیمی /transcribe-aac که با کلید سرور GROQ_API_KEY کار می‌کرد و
+     فرانت‌اند اصلاً صدایش نمی‌زد، کاملاً حذف شد — دیگر هیچ کلید پروایدری
+     روی سرور نگه داشته نمی‌شود.
+  7) استفاده از logging به‌جای print.
 """
 
+import hmac
 import ipaddress
 import json
 import logging
@@ -37,18 +42,42 @@ from deep_translator.exceptions import (
     TooManyRequests,
     TranslationNotFound,
 )
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("audtotxtfa")
 
 app = Flask(__name__)
 
-# حداکثر حجم بدنه درخواست (فایل صوتی legacy + سایر مسیرها) — جلوگیری از
+# حداکثر حجم بدنه درخواست (سایر مسیرها) — جلوگیری از
 # مصرف بی‌رویه حافظه/پهنای‌باند سرورلس با درخواست‌های حجیم.
 app.config["MAX_CONTENT_LENGTH"] = 30 * 1024 * 1024  # 30MB
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# ---------------------------------------------------------------------------
+# احراز هویت بک‌اند (BACKEND_API_KEY)
+# ---------------------------------------------------------------------------
+# این کلید، کلید پروایدر نیست و ربطی به Groq/OpenRouter/... ندارد؛ یک رمز
+# ساده است که فقط صاحب پروژه می‌داند و فرانت‌اند خودش (تنظیمات > کلید بک‌اند)
+# در هر درخواست ترجمه با هدر X-API-Key می‌فرستد. اگر در Vercel ست شده باشد،
+# هر درخواست بدون هدر درست با 401 رد می‌شود — حتی اگر کلید پروایدر طرف درست
+# باشد — پس کسی که فقط آدرس ورسل را پیدا کرده نمی‌تواند از آن استفاده کند.
+# اگر ست نشده باشد، برای سازگاری با اجرای محلی/تست، مسیرها باز می‌مانند و
+# یک هشدار در لاگ نوشته می‌شود؛ برای هر دیپلوی عمومی حتماً آن را ست کنید.
+# مقدار را هیچ‌وقت در کد یا در فرانت‌اند هاردکد نکنید.
+BACKEND_API_KEY = os.environ.get("BACKEND_API_KEY", "").strip()
+if not BACKEND_API_KEY:
+    logger.warning("BACKEND_API_KEY تنظیم نشده است؛ مسیرهای ترجمه بدون احراز هویت باز هستند.")
+
+
+def _require_backend_auth():
+    """None یعنی مجاز، وگرنه یک پاسخ 401 آماده برمی‌گرداند."""
+    if not BACKEND_API_KEY:
+        return None
+    provided = (request.headers.get("X-API-Key") or "").strip()
+    if not provided or not hmac.compare_digest(provided, BACKEND_API_KEY):
+        return jsonify({"error": "کلید بک‌اند اشتباه است یا ارسال نشده است."}), 401
+    return None
+
 
 # ---------------------------------------------------------------------------
 # CORS: پیش‌فرض بسته (فقط هم‌مبدأ). چون تمام درخواست‌های فرانت‌اند از همان
@@ -66,7 +95,7 @@ def _apply_cors(response):
     if origin and (origin in ALLOWED_ORIGINS or "*" in ALLOWED_ORIGINS):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Vary"] = "Origin"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     # هدرهای امنیتی پایه
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -80,52 +109,6 @@ def _cors_preflight(_any):
     return ("", 204)
 
 
-# --- تنظیمات ورکر چندپروایدری (پراکسی معکوس کلادفلر) ---
-# همهٔ درخواست‌های AI (چه Whisper، چه ترجمه با هر پروایدر) به‌جای تماس مستقیم
-# با سرور پروایدر، از این ورکر عبور می‌کنند. دلیل: دور زدن بلاک/فیلترینگ IP
-# سرورلس روی برخی پروایدرها، و متمرکز کردن نقطهٔ خروج ترافیک AI.
-AI_PROXY_WORKER = os.environ.get("AI_PROXY_WORKER", "https://ai-reverse.aialsabela.workers.dev").rstrip("/")
-_AI_PROXY_WORKER_HOST = urlparse(AI_PROXY_WORKER).hostname
-
-# نگاشت هاست واقعی هر پروایدر -> نام پروایدر در ورکر (باید دقیقاً با آبجکت
-# PROVIDERS داخل worker.js یکی باشد؛ برای افزودن پروایدر جدید فقط اینجا و در
-# worker.js یک خط اضافه کنید)
-PROVIDER_HOST_MAP = {
-    "api.groq.com": "groq",
-    "openrouter.ai": "openrouter",
-    "api.unorouter.com": "unorouter",
-    "api-inference.huggingface.co": "huggingface",
-    "api.together.xyz": "together",
-    "generativelanguage.googleapis.com": "gemini",
-    "anymodel.org": "anymodel",
-    "api.deepseek.com": "deepseek",
-    "api.mistral.ai": "mistral",
-    "api.anthropic.com": "anthropic",
-}
-
-
-def _route_through_worker(direct_url: str) -> str:
-    """
-    یک آدرس مستقیم پروایدر (مثلاً https://api.groq.com/openai/v1/chat/completions)
-    را می‌گیرد و در صورت شناخته‌بودن هاست، آن را از طریق ورکر چندپروایدری
-    بازنویسی می‌کند. اگر هاست شناخته‌شده نبود، همان آدرس اصلی بدون تغییر
-    برگردانده می‌شود تا انعطاف‌پذیری فرانت‌اند (پروایدر سفارشی) از بین نرود.
-    """
-    try:
-        parsed = urlparse(direct_url)
-    except Exception:
-        return direct_url
-
-    provider_key = PROVIDER_HOST_MAP.get(parsed.hostname)
-    if not provider_key:
-        return direct_url
-
-    rebuilt = f"{AI_PROXY_WORKER}/{provider_key}{parsed.path}"
-    if parsed.query:
-        rebuilt += f"?{parsed.query}"
-    return rebuilt
-
-
 class OutboundUrlError(ValueError):
     """آدرس خروجی درخواستی توسط کاربر رد شد (اسکیم نامعتبر یا هدف داخلی/خصوصی)."""
 
@@ -136,10 +119,9 @@ def _assert_safe_outbound_url(url: str) -> None:
     (فرانت‌اند) تعیین می‌شود، بدون بررسی می‌توانست برای رسیدن به سرویس‌های
     داخلی شبکه‌ی سرورلس (مثلاً متادیتای ابری) سوءاستفاده شود. اینجا:
       - فقط https مجاز است.
-      - هاست‌های شناخته‌شده (که از طریق ورکر عبور می‌کنند) یا خودِ ورکر رد
-        نمی‌شوند چون آدرس نهایی واقعی از قبل مشخص و قابل اعتماد است.
-      - برای هر هاست دیگر (پروایدر سفارشی)، IP رزولوشن‌شده نباید در محدوده‌های
-        خصوصی/loopback/link-local/رزرو شده باشد.
+      - برای هر هاست، IP رزولوشن‌شده نباید در محدوده‌های
+        خصوصی/loopback/link-local/رزرو شده باشد. دیگر هیچ هاستی از این
+        بررسی معاف نیست (ورکر حذف شد).
     """
     parsed = urlparse(url)
     if parsed.scheme != "https":
@@ -148,9 +130,6 @@ def _assert_safe_outbound_url(url: str) -> None:
     hostname = parsed.hostname
     if not hostname:
         raise OutboundUrlError("آدرس پروایدر نامعتبر است.")
-
-    if hostname in PROVIDER_HOST_MAP or hostname == _AI_PROXY_WORKER_HOST:
-        return
 
     try:
         infos = socket.getaddrinfo(hostname, None)
@@ -232,7 +211,17 @@ def _translate_group(texts, target, engine_cls):
         r = translator.translate(texts[0])
         return [r if r else texts[0]]
     try:
-        return _translate_joined(texts, target, engine_cls)
+        parts = _translate_joined(texts, target, engine_cls)
+        # تعداد خط‌ها درست است ولی ممکن است گوگل دو خط را ادغام و یک خط
+        # دیگر را شکسته باشد (تعداد یکی می‌ماند ولی محتوا جابه‌جا می‌شود).
+        # نشانه‌اش: یک خط خیلی طولانی‌تر از اصلی‌اش و یک خط دیگر خیلی
+        # کوتاه‌تر از اصلی‌اش. در این حالت هم گروه را نصف کن و دوباره
+        # امتحان کن، مثل وقتی که تعداد خط‌ها نمی‌خواند.
+        for orig, tr in zip(texts, parts):
+            if orig and tr and len(tr) > 2.5 * len(orig) and len(tr) - len(orig) > 80:
+                if any(o2 and t2 and len(t2) < 0.4 * len(o2) for o2, t2 in zip(texts, parts)):
+                    raise _LineCountMismatch()
+        return parts
     except _LineCountMismatch:
         mid = len(texts) // 2
         left = _translate_group(texts[:mid], target, engine_cls)
@@ -296,6 +285,9 @@ def translate_batch_safe(texts, target="fa"):
 # --- مسیر ترجمه گوگل/جایگزین در پس‌زمینه ---
 @app.route("/translate-google", methods=["POST"])
 def translate_google():
+    auth_error = _require_backend_auth()
+    if auth_error is not None:
+        return auth_error
     try:
         data = request.get_json(silent=True)
         if not data or "texts" not in data:
@@ -321,55 +313,6 @@ def translate_google():
         return jsonify({"error": "خطا در ترجمه", "details": str(e)}), 500
 
 
-# --- مسیر قدیمی/پشتیبان: تبدیل فایل AAC با کلید سرور (فرانت‌اند فعلی صدا نمی‌زند) ---
-@app.route("/transcribe-aac", methods=["POST"])
-def transcribe_aac():
-    try:
-        if "file" not in request.files:
-            return jsonify({"error": "هیچ فایلی ارسال نشده است."}), 400
-
-        file = request.files["file"]
-        if file.filename == "":
-            return jsonify({"error": "فایلی انتخاب نشده است."}), 400
-
-        if not GROQ_API_KEY:
-            return jsonify({"error": "متغیر محیطی GROQ_API_KEY روی سرور تنظیم نشده است."}), 500
-
-        file_bytes = file.read()
-        file_size_mb = len(file_bytes) / (1024 * 1024)
-
-        if file_size_mb > 25:
-            return jsonify({
-                "error": f"حجم فایل ({file_size_mb:.2f}MB) بیشتر از حد مجاز ۲۵ مگابایت Groq است. لطفاً ابتدا آن را فشرده کنید."
-            }), 400
-
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        # همان ورکر اصلی که در بقیه‌ی پروژه استفاده می‌شود (نسخه قبلی این‌جا به
-        # اشتباه دامنه‌ی متفاوتی داشت که با AI_PROXY_WORKER ناسازگار بود)
-        groq_url = f"{AI_PROXY_WORKER}/groq/openai/v1/audio/transcriptions"
-
-        data = {
-            "model": "whisper-large-v3-turbo",
-            "temperature": "0.0",
-            "response_format": "verbose_json",
-        }
-        files = {"file": (file.filename, file_bytes, "audio/aac")}
-
-        response = requests.post(groq_url, headers=headers, data=data, files=files, timeout=60)
-
-        if response.status_code == 200:
-            return jsonify({"success": True, "text": response.json().get("text", "")})
-
-        return jsonify({
-            "error": "خطا در ارتباط با سرور Whisper",
-            "details": response.text,
-        }), response.status_code
-
-    except Exception as e:
-        logger.exception("خطا در /transcribe-aac")
-        return jsonify({"error": "خطای غیرمنتظره رخ داد", "details": str(e)}), 500
-
-
 # --- ترجمه هوشمند متن با هر پروایدر AI (پراکسی سمت سرور — رفع مشکل CORS/فیلترینگ) ---
 # نکته مهم طراحی: این endpoint فقط یک دستهٔ کوچک (۱۵-۲۵ خط) رو ترجمه می‌کنه، نه کل
 # فایل زیرنویس یه‌جا. دلیل: اگه کل فایل (که می‌تونه چند صد خط باشه) توی یک درخواست
@@ -384,6 +327,7 @@ _AI_TRANSLATE_PROMPT_TEMPLATE = """شما یک مترجم حرفه‌ای زیر
 ۳. **لحن متناسب برای فحش/ناسزا:** شدت فحش را اغراق نکنید و دقیقاً متناسب با شدت متن اصلی ترجمه کنید (مثلاً "What the hell?" را به «این دیگه چه کوفتیه؟» یا «این چه مرگشه؟» ترجمه کنید، نه با ناسزای رکیک، مگر این‌که متن اصلی صریحاً از کلمات رکیک قوی استفاده کرده باشد).
 ۴. **کوتاه و مناسب زیرنویس:** جمله‌ها را کوتاه و قابل‌خواندن روی صفحه نگه دارید. علائم نگارشی را به‌شکل طبیعی حفظ کنید.
 ۵. **هرگز دو کلید را با هم ادغام نکن:** هر کلید یک خط زیرنویس مستقل با زمان‌بندی خودش است، حتی اگر کوتاه باشد یا ادامهٔ منطقی خط قبلی/بعدی به‌نظر برسد. برای هر کلیدی که در ورودی می‌بینی، دقیقاً باید یک مقدار جداگانه در خروجی داشته باشی — هیچ‌وقت ترجمهٔ دو کلید را زیر یک کلید ننویس و هیچ کلیدی را از خروجی حذف نکن.
+۶. **نشانه ادغام:** اگر ترجمهٔ یک کلید خیلی طولانی‌تر از متن اصلی همان کلید شد (چند برابر)، یعنی دو خط را با هم ادغام کرده‌ای؛ همان‌جا جدا کن و هر خط را زیر کلید خودش بنویس.
 
 قواعد حیاتی فرمت خروجی:
 ۱. فقط و فقط یک آبجکت JSON معتبر با همان کلیدهای داده‌شده برگردانید.
@@ -397,7 +341,11 @@ _AI_TRANSLATE_PROMPT_TEMPLATE = """شما یک مترجم حرفه‌ای زیر
 
 
 def _build_ai_endpoint(provider_url):
-    return _route_through_worker(provider_url)
+    # مستقیم به خود پروایدر می‌رویم؛ ورکر چندپروایدری حذف شد.
+    cleaned = provider_url.rstrip("/")
+    if not cleaned.endswith("/chat/completions"):
+        cleaned = cleaned + "/chat/completions"
+    return cleaned
 
 
 def _extract_message_text(message):
@@ -431,7 +379,7 @@ def _parse_json_object(raw_text):
     raise ValueError("پاسخ مدل یک JSON معتبر نبود.")
 
 
-def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, timeout=100):
+def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, timeout=50):
     """
     فقط یک درخواست واقعی به پروایدر می‌زند و هیچ time.sleep/retry داخلی ندارد
     (به‌جز یک fallback فوری بدون response_format، که یک درخواست HTTP اضافه است
@@ -525,6 +473,23 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, t
         )
         return list(texts), "parse_error", None
 
+    # ادغام پنهان: همه کلیدها برگشته‌اند ولی ترجمهٔ چند خط زیر یک کلید
+    # جمع شده است. نشانه‌اش یک مقدار خیلی طولانی‌تر از متن اصلی همان
+    # کلید است (ترجمه فارسی معمولاً حداکثر حدود ۱٫۵ برابر انگلیسی است،
+    # نه ۲٫۵ برابر به‌علاوه ۸۰ کاراکتر). این دسته را شکست کامل حساب کن
+    # تا فرانت‌اند آن را با دستهٔ کوچک‌تر دوباره امتحان کند.
+    for key, orig in non_empty.items():
+        tr = translated_json.get(key)
+        if tr is None:
+            continue
+        tr_text = str(tr).strip()
+        if tr_text and len(tr_text) > 2.5 * len(orig) and len(tr_text) - len(orig) > 80:
+            logger.warning(
+                "مدل ترجمهٔ کلید %s را ادغام کرده است (اصلی %d کاراکتر، ترجمه %d کاراکتر)",
+                key, len(orig), len(tr_text),
+            )
+            return list(texts), "parse_error", None
+
     output = list(texts)
     for i in range(len(texts)):
         key = str(i + 1)
@@ -535,6 +500,9 @@ def _translate_text_batch(texts, endpoint, headers, model, use_json_mode=True, t
 
 @app.route("/translate-ai", methods=["POST"])
 def translate_ai():
+    auth_error = _require_backend_auth()
+    if auth_error is not None:
+        return auth_error
     try:
         data = request.get_json(silent=True)
         if not data:
@@ -592,11 +560,91 @@ def translate_ai():
 
 
 def _build_ai_endpoint_source(provider_url: str) -> str:
-    """همان قالب‌بندی endpoint نهایی (برای اعتبارسنجی URL) بدون routing از ورکر."""
+    """همان قالب‌بندی endpoint نهایی (برای اعتبارسنجی URL)."""
     cleaned = provider_url.rstrip("/")
     if not cleaned.endswith("/chat/completions"):
         cleaned = cleaned + "/chat/completions"
     return cleaned
+
+
+
+# --- دانلود لینک از طریق سرور (رفع CORS در حالت لینک) ---
+# مرورگر مستقیم فقط فایل‌هایی را می‌تواند بخواند که هاستشان CORS را باز
+# گذاشته باشد؛ بیشتر هاست‌های فایل صوت/SRT این کار را نمی‌کنند و fetch
+# مستقیم با خطای شبکه رد می‌شود. این مسیر همان لینک را از سرور می‌گیرد و
+# به مرورگر برمی‌گرداند. محافظت‌ها: احراز هویت بک‌اند، اعتبارسنجی SSRF
+# روی آدرس اولیه و روی هر ریدایرکت، سقف ۲۵ مگابایت و تایم‌اوت ۳۰ ثانیه.
+FETCH_LINK_MAX_BYTES = 25 * 1024 * 1024
+
+
+@app.route("/fetch-link", methods=["GET"])
+def fetch_link():
+    auth_error = _require_backend_auth()
+    if auth_error is not None:
+        return auth_error
+    url = (request.args.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "لینک ارسال نشده است."}), 400
+    try:
+        _assert_safe_outbound_url(url)
+    except OutboundUrlError as ue:
+        return jsonify({"error": str(ue)}), 400
+
+    current_url = url
+    try:
+        response = None
+        for _ in range(4):
+            response = requests.get(
+                current_url, timeout=30, stream=True, allow_redirects=False,
+                headers={"User-Agent": "AISubMedia/1.0"},
+            )
+            if response.status_code not in (301, 302, 303, 307, 308):
+                break
+            location = response.headers.get("Location")
+            response.close()
+            if not location:
+                return jsonify({"error": "ریدایرکت بدون مقصد."}), 502
+            # ریدایرکت نسبی را نسبت به آدرس فعلی کامل کن
+            from urllib.parse import urljoin
+
+            current_url = urljoin(current_url, location)
+            try:
+                _assert_safe_outbound_url(current_url)
+            except OutboundUrlError as ue:
+                return jsonify({"error": str(ue)}), 400
+        else:
+            return jsonify({"error": "تعداد ریدایرکت‌ها بیش از حد مجاز است."}), 502
+
+        if response.status_code != 200:
+            response.close()
+            return jsonify({"error": f"هاست لینک خطای {response.status_code} برگرداند."}), 502
+
+        declared = response.headers.get("Content-Length")
+        if declared is not None:
+            try:
+                if int(declared) > FETCH_LINK_MAX_BYTES:
+                    response.close()
+                    return jsonify({"error": "حجم فایل لینک بیش از ۲۵ مگابایت است."}), 400
+            except ValueError:
+                pass
+
+        chunks = []
+        total = 0
+        for chunk in response.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > FETCH_LINK_MAX_BYTES:
+                response.close()
+                return jsonify({"error": "حجم فایل لینک بیش از ۲۵ مگابایت است."}), 400
+            chunks.append(chunk)
+        response.close()
+        body = b"".join(chunks)
+        content_type = response.headers.get("Content-Type") or "application/octet-stream"
+        return Response(body, content_type=content_type)
+    except requests.exceptions.RequestException as e:
+        logger.warning("خطا در دانلود لینک %s: %s", url, e)
+        return jsonify({"error": "دانلود لینک از سرور ممکن نشد."}), 502
 
 
 @app.route("/", methods=["GET"])
