@@ -8,13 +8,18 @@ const STORAGE_KEY = 'ai_config_data';
 
 // کلیدهایی که هرگز نباید به‌عنوان نام پروایدر پذیرفته شوند — جلوگیری از
 // آلودگی پروتوتایپ (prototype pollution) هنگام وارد کردن یک فایل JSON دستکاری‌شده.
-const RESERVED_KEYS = new Set(['version', 'export_date', 'api_keys', '__proto__', 'constructor', 'prototype']);
+const RESERVED_KEYS = new Set(['version', 'export_date', 'api_keys', 'backend_api_key', '__proto__', 'constructor', 'prototype']);
 
 function emptyConfig() {
     return {
         version: '1.0',
         export_date: new Date().toISOString(),
         api_keys: [],
+        // کلید بک‌اند (BACKEND_API_KEY) — نه کلید پروایدر. فقط برای این‌که
+        // سرور ورسل بداند درخواست از صاحب پروژه است؛ در هر درخواست ترجمه
+        // با هدر X-API-Key فرستاده می‌شود. مثل بقیه کلیدها فقط در همین
+        // مرورگر ذخیره می‌شود.
+        backend_api_key: '',
         providers: Object.create(null),
     };
 }
@@ -23,6 +28,15 @@ let configData = emptyConfig();
 
 export function getConfig() {
     return configData;
+}
+
+export function getBackendApiKey() {
+    return configData.backend_api_key || '';
+}
+
+export function setBackendApiKey(value) {
+    configData.backend_api_key = (value || '').trim();
+    saveConfig();
 }
 
 // هر مدل زیر یک پروایدر می‌تونه RPS متفاوتی از بقیهٔ مدل‌های همون پروایدر
@@ -63,6 +77,7 @@ export function loadConfig() {
             configData = emptyConfig();
             configData.version = parsed.version || '1.0';
             configData.api_keys = Array.isArray(parsed.api_keys) ? parsed.api_keys : [];
+            configData.backend_api_key = typeof parsed.backend_api_key === 'string' ? parsed.backend_api_key : '';
             if (parsed.providers && typeof parsed.providers === 'object') {
                 for (const [key, value] of Object.entries(parsed.providers)) {
                     if (RESERVED_KEYS.has(key)) continue;
@@ -201,6 +216,7 @@ export function exportConfig() {
         version: configData.version || '1.0',
         export_date: new Date().toISOString(),
         api_keys: configData.api_keys || [],
+        backend_api_key: configData.backend_api_key || '',
         ...configData.providers,
     };
 }
@@ -214,6 +230,7 @@ export function importConfig(jsonText) {
     next.version = imported.version || '1.0';
     next.export_date = imported.export_date || new Date().toISOString();
     next.api_keys = Array.isArray(imported.api_keys) ? imported.api_keys : [];
+    next.backend_api_key = typeof imported.backend_api_key === 'string' ? imported.backend_api_key : '';
 
     Object.keys(imported).forEach((k) => {
         if (RESERVED_KEYS.has(k)) return;

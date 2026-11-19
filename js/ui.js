@@ -4,9 +4,9 @@ import {
     loadConfig, getConfig, saveConfig,
     addProvider, addApiKey, deleteApiKey,
     deleteProvider, deleteModel, updateModelRps, updateProviderUrl,
-    exportConfig, importConfig,
+    exportConfig, importConfig, getBackendApiKey, setBackendApiKey,
 } from './config.js';
-import { parseSrtBlocks, buildSrtFromBlocks } from './srt.js';
+import { parseSrtBlocks, buildSrtFromBlocks, ensureSrtIntegrity } from './srt.js';
 import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js';
 import { processAudioFile } from './transcribe.js';
 
@@ -116,6 +116,8 @@ export function initApp() {
     const keyLabelInput = document.getElementById('keyLabelInput');
     const keyValueInput = document.getElementById('keyValueInput');
     const saveKeyBtn = document.getElementById('saveKeyBtn');
+    const backendKeyInput = document.getElementById('backendKeyInput');
+    const saveBackendKeyBtn = document.getElementById('saveBackendKeyBtn');
     const deleteKeyBtn = document.getElementById('deleteKeyBtn');
     const keyListSelect = document.getElementById('keyListSelect');
 
@@ -381,7 +383,7 @@ export function initApp() {
         try {
             const result = addProvider(provName.value, provBaseUrl.value, provModel.value, provMaxRps.value);
             provName.value = '';
-            provBaseUrl.value = '';
+            provBaseUrl.value = 'https://api.groq.com/openai/v1';
             provModel.value = '';
             provMaxRps.value = '';
             updateDropdowns();
@@ -405,6 +407,13 @@ export function initApp() {
         } catch (err) {
             alert(err.message);
         }
+    });
+
+    // کلید بک‌اند: فقط در همین مرورگر ذخیره می‌شود و در هر درخواست ترجمه
+    // با هدر X-API-Key به سرور خودمان فرستاده می‌شود.
+    if (saveBackendKeyBtn) saveBackendKeyBtn.addEventListener('click', () => {
+        setBackendApiKey(backendKeyInput ? backendKeyInput.value : '');
+        alert('کلید بک‌اند ذخیره شد. باید دقیقاً همان مقدار BACKEND_API_KEY در Vercel باشد.');
     });
 
     if (deleteKeyBtn) deleteKeyBtn.addEventListener('click', () => {
@@ -470,6 +479,31 @@ export function initApp() {
         }
     });
 
+    // دانلود فایل از لینک: اول مستقیم از مرورگر (سریع، بدون عبور از سرور)،
+    // و اگر هاست CORS را بسته بود (خطای شبکه)، از طریق پروکسی بک‌اند
+    // (/fetch-link) که همان محافظت SSRF و احراز هویت بک‌اند را دارد.
+    async function fetchFileFromLink(url) {
+        try {
+            const directRes = await fetch(url);
+            if (!directRes.ok) throw new Error(`هاست لینک خطای ${directRes.status} برگرداند.`);
+            return await directRes.blob();
+        } catch (directErr) {
+            const headers = {};
+            const backendKey = getBackendApiKey();
+            if (backendKey) headers['X-API-Key'] = backendKey;
+            const res = await fetch('/fetch-link?url=' + encodeURIComponent(url), { headers });
+            if (!res.ok) {
+                let msg = 'دانلود لینک از طریق سرور ممکن نشد.';
+                try {
+                    const data = await res.json();
+                    if (data && data.error) msg = data.error;
+                } catch (e) { /* پاسخ JSON نبود؛ همان پیام عمومی می‌ماند */ }
+                throw new Error(msg);
+            }
+            return await res.blob();
+        }
+    }
+
     // ---------- فرم پردازش صوت ----------
     if (form) form.addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -484,13 +518,12 @@ export function initApp() {
             if (progressState) progressState.innerText = 'در حال دانلود فایل از لینک...';
             if (submitBtn) submitBtn.disabled = true;
             try {
-                const res = await fetch(url);
-                const blob = await res.blob();
+                const blob = await fetchFileFromLink(url);
                 const file = new File([blob], 'audio.mp3', { type: blob.type });
                 runProcessAudio(file);
             } catch (err) {
                 if (submitBtn) submitBtn.disabled = false;
-                alert('خطا در دریافت لینک صوتی');
+                alert('خطا در دریافت لینک صوتی: ' + err.message);
             }
         }
     });
@@ -587,7 +620,10 @@ export function initApp() {
 
                 const fakeSegments = blocks.map((b) => ({ text: b.text }));
                 const gResult = await translateSegmentsWithGoogle(fakeSegments, srtEls);
-                const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text }));
+                const translatedBlocks = ensureSrtIntegrity(
+                    blocks.map((b, i) => ({ timecode: b.timecode, text: gResult.segments[i].text })),
+                    blocks
+                );
                 translatedSrt = buildSrtFromBlocks(translatedBlocks);
                 if (gResult.failedChunks > 0) {
                     srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل/MyMemory در دسترس نبود؛ متن اصلی باقی ماند).`;
@@ -596,7 +632,7 @@ export function initApp() {
                 const trResult = await translateSrtWithAI(rawText, tProvUrl, tModel, tKey, srtEls, { maxRps: tProvMaxRps });
                 translatedSrt = trResult.text;
                 if (trResult.failedChunks > 0) {
-                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شد).`;
+                    srtTranslateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین شد);`
                 }
             }
 
@@ -627,13 +663,12 @@ export function initApp() {
             if (srtProgressState) srtProgressState.innerText = 'در حال دانلود فایل از لینک...';
             if (srtSubmitBtn) srtSubmitBtn.disabled = true;
             try {
-                const res = await fetch(url);
-                const blob = await res.blob();
+                const blob = await fetchFileFromLink(url);
                 const file = new File([blob], 'subtitle.srt', { type: blob.type || 'text/plain' });
                 processSrtFile(file);
             } catch (err) {
                 if (srtSubmitBtn) srtSubmitBtn.disabled = false;
-                alert('خطا در دریافت لینک فایل زیرنویس');
+                alert('خطا در دریافت لینک فایل زیرنویس: ' + err.message);
             }
         }
     });
@@ -646,6 +681,7 @@ export function initApp() {
     // ---------- شروع ----------
     loadConfig();
     updateDropdowns();
+    if (backendKeyInput) backendKeyInput.value = getBackendApiKey();
 
     // --- Small UI fixes to ensure consistent mobile behavior ---
     try {

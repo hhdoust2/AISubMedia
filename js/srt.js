@@ -30,3 +30,19 @@ export function convertSegmentsToSRT(segments) {
     });
     return srt;
 }
+
+// یکپارچگی خروجی ترجمه: تعداد بلاک‌ها باید دقیقاً با ورودی یکی باشد و هیچ
+// بلاکی متن خالی نداشته باشد. اگر ترجمه یک خط را جا انداخته یا خالی
+// برگردانده باشد (ادغام، خطای مدل، ناهماهنگی تعداد)، متن اصلی آن خط
+// برگردانده می‌شود تا زیرنویس «گم» نشود؛ این‌که یک خط ترجمه نشده باشد
+// خیلی بهتر از این است که اصلاً زیرنویسی نداشته باشد.
+export function ensureSrtIntegrity(translatedBlocks, originalBlocks) {
+    return originalBlocks.map((orig, i) => {
+        const tr = translatedBlocks ? translatedBlocks[i] : null;
+        const text = tr && typeof tr.text === 'string' && tr.text.trim()
+            ? tr.text
+            : orig.text;
+        const timecode = tr && tr.timecode ? tr.timecode : orig.timecode;
+        return { timecode, text };
+    });
+}

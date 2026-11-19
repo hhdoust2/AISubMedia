@@ -3,12 +3,16 @@ import { convertSegmentsToSRT } from './srt.js';
 import { translateSegmentsWithGoogle, translateSrtWithAI } from './translate.js';
 
 // اگر Whisper تایم‌استمپ کلمه‌به‌کلمه برگردانده باشد (data.words)، شروع هر
-// segment را روی شروع واقعی اولین کلمه‌ای که با آن هم‌پوشانی زمانی دارد تنظیم
-// می‌کنیم. این فقط شروع را دیرتر می‌برد (هیچ‌وقت زودتر)، و فقط وقتی اختلاف
-// معقول است (حداکثر ۶ ثانیه) تا در برابر خطای تطبیق کلمه محافظه‌کارانه بمانیم.
-// هدف: رفع مشکل «زیرنویس ��ند ثانیه زودتر از دیالوگ می‌آید» که وقتی قبل از
-// حرف‌زدن سکوت یا موسیقی هست، Whisper گاهی آن را هم جزو segment حساب می‌کند.
-function refineSegmentStarts(segments, words) {
+// segment را روی شروع واقعی اولین کلمه و پایانش را روی پایان واقعی آخرین
+// کلمه‌ای که با آن هم‌پوشانی زمانی دارد تنظیم می‌کنیم. شروع فقط دیرتر
+// می‌شود و پایان فقط زودتر (هیچ‌وقت برعکس)، و فقط وقتی اختلاف معقول است
+// (حداکثر ۶ ثانیه) تا در برابر خطای تطبیق کلمه محافظه‌کارانه بمانیم.
+// هدف: رفع مشکل «زیرنویس چند ثانیه زودتر از دیالوگ می‌آید و تا تمام شدن
+// دیالوگ روی صفحه می‌ماند» که وقتی قبل/بعد از حرف‌زدن سکوت یا موسیقی هست،
+// Whisper گاهی آن را هم جزو segment حساب می‌کند. نسخه قبلی فقط شروع را
+// سفت می‌کرد و پایان خام می‌ماند، پس زیرنویس بعد از تمام شدن حرف هم روی
+// صفحه می‌ماند.
+export function refineSegmentStarts(segments, words) {
     if (!Array.isArray(words) || words.length === 0) {
         console.warn(
             '[refineSegmentStarts] این پروایدر تایم‌استمپ کلمه‌به‌کلمه (words) برنگردانده؛ ' +
@@ -20,11 +24,84 @@ function refineSegmentStarts(segments, words) {
         const overlapping = words.filter((w) => w.start < seg.end && w.end > seg.start);
         if (overlapping.length === 0) return seg;
         const tightStart = Math.min(...overlapping.map((w) => w.start));
-        if (tightStart > seg.start && tightStart - seg.start <= 6) {
-            return { ...seg, start: tightStart };
-        }
-        return seg;
+        const tightEnd = Math.max(...overlapping.map((w) => w.end));
+        let start = seg.start;
+        let end = seg.end;
+        if (tightStart > seg.start && tightStart - seg.start <= 6) start = tightStart;
+        if (tightEnd < seg.end && seg.end - tightEnd <= 6) end = tightEnd;
+        // زیرنویس خیلی کوتاه یا وارونه نساز؛ در این صورت زمان خام را نگه دار.
+        if (end - start < 0.4) return seg;
+        return { ...seg, start, end };
     });
+}
+
+// هذیان Whisper روی سکوت/موسیقی: وقتی مکالمه‌ای نیست، مدل گاهی یک کلمه
+// تکراری می‌سازد («پایان»، «موسیقی»، «Music» و...) و آن را به‌عنوان زیرنویس
+// برمی‌گرداند. این فیلتر قبل از ساخت SRT اعمال می‌شود:
+//  ۱) متن خالی یا فقط علائم/نت موسیقی.
+//  ۲) کل متن segment دقیقاً یکی از عبارت‌های معروف هذیان باشد. یک دیالوگ
+//     واقعی تقریباً هیچ‌وقت یک زیرنویس کامل نیست که فقط «پایان» یا «موسیقی»
+//     باشد؛ اگر شخصیت واقعاً همین یک کلمه را گفته باشد، این یک خط از دست
+//     می‌رود، ولی در عوض ده‌ها «پایان» اشتباه روی موسیقی حذف می‌شود.
+//  ۳) سیگنال‌های خود Whisper (وقتی پروایدر برمی‌گرداند): no_speech_prob
+//     بالا همراه با avg_logprob پایین، یا compression_ratio بالا (تکرار).
+//  ۴) تکرار یک متن یکسان بیش از دو بار پشت‌سرهم (حلقه هذیان).
+const HALLUCINATED_PHRASES = new Set([
+    'پایان', 'پایان فیلم', 'پایان قسمت', 'پایان ویدیو', 'پایان ویدئو',
+    'تمام', 'موسیقی', 'موزیک', 'آهنگ', 'سکوت', 'صدای موسیقی',
+    'music', 'musik', 'song', 'silence', 'end', 'the end', 'fin',
+    'thank you for watching', 'thanks for watching', 'subscribe',
+    'زیرنویس', 'subtitle', 'subtitles',
+]);
+
+function normalizeHallucinationText(text) {
+    return (text || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\[\](){}«»"'\u201c\u201d\u2018\u2019♪♫]/g, '')
+        .replace(/[.!.؟…,:;،]+$/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+export function filterHallucinatedSegments(segments) {
+    if (!Array.isArray(segments)) return segments;
+    const kept = [];
+    const dropped = [];
+    let lastText = null;
+    let lastRun = 0;
+    segments.forEach((seg) => {
+        const normalized = normalizeHallucinationText(seg.text);
+        let dropReason = null;
+        if (!normalized) {
+            dropReason = 'متن خالی';
+        } else if (HALLUCINATED_PHRASES.has(normalized)) {
+            dropReason = 'عبارت هذیان (' + normalized + ')';
+        } else if (
+            typeof seg.no_speech_prob === 'number' && seg.no_speech_prob >= 0.75 &&
+            (typeof seg.avg_logprob !== 'number' || seg.avg_logprob < -0.8)
+        ) {
+            dropReason = 'no_speech_prob بالا (' + seg.no_speech_prob.toFixed(2) + ')';
+        } else if (typeof seg.compression_ratio === 'number' && seg.compression_ratio > 2.4) {
+            dropReason = 'compression_ratio بالا (' + seg.compression_ratio.toFixed(2) + ')';
+        } else if (normalized === lastText) {
+            lastRun += 1;
+            if (lastRun > 2) dropReason = 'تکرار بیش از دو بار';
+        }
+        if (normalized !== lastText) {
+            lastText = normalized;
+            lastRun = 1;
+        }
+        if (dropReason) {
+            dropped.push({ text: seg.text, reason: dropReason });
+            return;
+        }
+        kept.push(seg);
+    });
+    if (dropped.length > 0) {
+        console.warn('[filterHallucinatedSegments] حذف ' + dropped.length + ' segment هذیان/بدون گفتار:', dropped);
+    }
+    return kept;
 }
 
 // Whisper تشخیص گوینده (speaker diarization) ندارد و فقط بر اساس سکوت segment
@@ -33,6 +110,7 @@ function refineSegmentStarts(segments, words) {
 // و صفحه را پر می‌کند. این تابع چنین segmentهایی را بر اساس علائم پایان جمله
 // می‌شکند و — در صورت وجود تایم‌استمپ کلمه‌به‌کلمه — زمان هر تکه را از روی
 // کلمات واقعی حساب می‌کند (نه فقط تقسیم مساوی زمان کل).
+
 const SENTENCE_SPLIT_RE = /(?<=[.!?؟…])\s+(?=\S)/;
 const MIN_SPLIT_DURATION = 3.2; // ثانیه — segmentهای کوتاه‌تر شکسته نمی‌شوند
 const MIN_SPLIT_CHARS = 70; // segmentهای کوتاه‌تر معمولاً یک جمله‌اند، نیازی به شکستن نیست
@@ -99,7 +177,9 @@ function splitLongSegments(segments, words) {
         });
     });
 
-    return result;
+    // هیچ تکه‌ای با مدت صفر/منفی برنگردان: چنین زیرنویسی در پخش‌کننده
+    // دیده نمی‌شود و «گم شدن زیرنویس» به نظر می‌رسد.
+    return result.map((seg) => (seg.end > seg.start ? seg : { ...seg, end: seg.start + 0.5 }));
 }
 
 /**
@@ -216,15 +296,19 @@ export function processAudioFile(file, ctx) {
                 throw new Error('ساختار پاسخ زیرنویس معتبر نیست.');
             }
 
-            const refinedSegments = refineSegmentStarts(data.segments, data.words);
-            const segments = splitLongSegments(refinedSegments, data.words);
+            const filteredSegments = filterHallucinatedSegments(data.segments);
+            if (filteredSegments.length === 0) {
+                throw new Error('هیچ مکالمه‌ای تشخیص داده نشد؛ فایل فقط موسیقی یا سکوت است؟');
+            }
+            const refinedSegments = refineSegmentStarts(filteredSegments, data.words);
+            const segments = filterHallucinatedSegments(splitLongSegments(refinedSegments, data.words));
 
             let srt;
             if (isGoogleTranslate) {
                 const gResult = await translateSegmentsWithGoogle(segments, { state: progressState, bar: progressBar, percent: progressPercent });
                 srt = convertSegmentsToSRT(gResult.segments);
                 if (gResult.failedChunks > 0) {
-                    translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل در د�[...]`
+                    translateWarningMsg = `تکمیل شد، اما ⚠️ ${gResult.failedChunks} از ${gResult.totalChunks} دسته با گوگل ترجمه نشد (سرور گوگل/MyMemory در دسترس نبود؛ متن اصلی باقی ماند).`;
                 }
             } else {
                 srt = convertSegmentsToSRT(segments);
@@ -232,7 +316,7 @@ export function processAudioFile(file, ctx) {
                     const trResult = await translateSrtWithAI(srt, tProvUrl, tModel, tKey, { state: progressState, bar: progressBar, percent: progressPercent }, { maxRps: tProvMaxRps });
                     srt = trResult.text;
                     if (trResult.failedChunks > 0) {
-                        translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} از ${trResult.totalChunks} بخش ترجمه نشدند (متن اصلی جایگزین �[...]`
+                        translateWarningMsg = `تکمیل شد، اما ⚠️ ${trResult.failedChunks} خط/بخش (از مجموع ${trResult.totalChunks} دسته) ترجمه نشدند (متن اصلی جایگزین شد).`;
                     }
                 }
             }

@@ -1,6 +1,7 @@
 // ترجمه با گوگل (پروکسی سمت سرور) و ترجمه هوشمند با مدل انتخابی کاربر
 import { sleep, setProgress } from './utils.js';
-import { parseSrtBlocks, buildSrtFromBlocks } from './srt.js';
+import { getBackendApiKey } from './config.js';
+import { parseSrtBlocks, buildSrtFromBlocks, ensureSrtIntegrity } from './srt.js';
 
 // یک درخواست fetch با timeout واقعی (AbortController) تا در صورت هنگ کردن
 // شبکه، رابط کاربری برای همیشه در حالت "در حال بارگذاری" گیر نکند.
@@ -14,6 +15,22 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
     }
 }
 
+// هدرهای درخواست به بک‌اند خودمان: کلید بک‌اند (BACKEND_API_KEY) اگر در
+// تنظیمات وارد شده باشد، با هدر X-API-Key فرستاده می‌شود. این کلید، کلید
+// پروایدر نیست؛ فقط ثابت می‌کند درخواست از صاحب پروژه است.
+const BACKEND_AUTH_ERROR = 'کلید بک‌اند اشتباه است یا در تنظیمات وارد نشده است. آن را با مقدار BACKEND_API_KEY در Vercel یکی کنید.';
+
+function backendHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const key = getBackendApiKey();
+    if (key) headers['X-API-Key'] = key;
+    return headers;
+}
+
+function isBackendAuthError(err) {
+    return err && err.message === BACKEND_AUTH_ERROR;
+}
+
 const PERSIAN_CHARS_RE = /[\u0600-\u06FF]/;
 
 // آیا این خط از قبل فارسی است؟ (خط‌هایی که هوش مصنوعی قبلاً موفق ترجمه کرده)
@@ -24,7 +41,7 @@ function looksAlreadyPersian(text) {
 // تابع ارتباط با سرور گوگل در پس‌زمینه — ارسال به بک‌اند در قالب دسته‌های
 // ۴۰ تایی برای جلوگیری از Timeout.
 //
-// نکته مهم (باگ واقعی که این نسخه رفع می‌کند): وقتی یک دسته را با ��م به یک
+// نکته مهم (باگ واقعی که این نسخه رفع می‌کند): وقتی یک دسته را با هم به یک
 // متن می‌چسبانیم و با source="auto" می‌فرستیم، گوگل زبان کل بلوک را یک‌جا
 // تشخیص می‌دهد، نه خط‌به‌خط. برای فایل‌هایی که بخشی از آن‌ها قبلاً (مثلاً با
 // هوش مصنوعی) به فارسی ترجمه شده و فقط چند خط ناموفق به زبان اصلی مانده،
@@ -61,9 +78,10 @@ export async function translateSegmentsWithGoogle(segments, els) {
         const attemptOnce = async () => {
             const res = await fetchWithTimeout('/translate-google', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: backendHeaders(),
                 body: JSON.stringify({ texts: chunk }),
             }, 25000);
+            if (res.status === 401) throw new Error(BACKEND_AUTH_ERROR);
             if (!res.ok) throw new Error('خطای ارتباط با سرور گوگل');
             return res.json();
         };
@@ -84,6 +102,9 @@ export async function translateSegmentsWithGoogle(segments, els) {
                 finalTexts[idx] = data.translated_texts[j] ?? texts[idx];
             });
         } catch (e) {
+            // خطای احراز هویت بک‌اند را پنهان نکن: نه retry دارد، نه fallback
+            // با متن اصلی؛ کاربر باید کلید را درست کند.
+            if (isBackendAuthError(e)) throw e;
             console.error(e);
             // در صورت بروز مشکل، متن اصلی همان خط‌ها بدون تغییر باقی می‌ماند
             failedChunks++;
@@ -116,10 +137,12 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     // تعداد کل درخواست‌ها (و درنتیجه زمان کل) کمتر بشه.
     // Coerce maxRps to number if provided
     const knownRps = (typeof options.maxRps !== 'undefined' && options.maxRps !== null) ? Number(options.maxRps) : null;
+    // دسته‌های کوچک‌تر از قبل: دسته بزرگ‌تر یعنی احتمال بیشتر این‌که مدل
+    // چند خط را با هم ادغام کند و همه ترجمه را زیر یک کلید بگذارد.
     const batchSize = options.batchSize || (
-        knownRps && knownRps < 0.2 ? 100 :
-        knownRps && knownRps < 0.5 ? 50 :
-        25
+        knownRps && knownRps < 0.2 ? 50 :
+        knownRps && knownRps < 0.5 ? 30 :
+        20
     );
     const concurrency = options.concurrency || 3;
 
@@ -180,9 +203,11 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
 
         const res = await fetchWithTimeout('/translate-ai', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: backendHeaders(),
             body: JSON.stringify({ texts: batchTexts, provider_url: provUrl, model, api_key: apiKey }),
-        }, 110000);
+        }, 55000);
+
+        if (res.status === 401) throw new Error(BACKEND_AUTH_ERROR);
 
         let data = null;
         try {
@@ -241,6 +266,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
         try {
             r = await translateOneBatch(batchTexts);
         } catch (err) {
+            if (isBackendAuthError(err)) throw err;
             console.error('خطای غیرمنتظره در ترجمه دسته:', err);
             r = { texts: batchTexts, ok: false };
         }
@@ -281,6 +307,7 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
             try {
                 results[myIndex] = await translateBatchWithSplit(batches[myIndex]);
             } catch (err) {
+                if (isBackendAuthError(err)) throw err;
                 console.error(`ترجمه دسته ${myIndex + 1} کاملاً شکست خورد:`, err);
                 results[myIndex] = batches[myIndex];
                 failedBatches++;
@@ -301,7 +328,10 @@ export async function translateSrtWithAI(srtText, provUrl, model, apiKey, els, o
     await Promise.all(Array.from({ length: workerCount }, (_, i) => worker(i)));
 
     const translatedTexts = results.flat();
-    const translatedBlocks = blocks.map((b, i) => ({ timecode: b.timecode, text: translatedTexts[i] || b.text }));
+    const translatedBlocks = ensureSrtIntegrity(
+        blocks.map((b, i) => ({ timecode: b.timecode, text: translatedTexts[i] || b.text })),
+        blocks
+    );
     const translatedSrt = buildSrtFromBlocks(translatedBlocks);
 
     setProgress(
