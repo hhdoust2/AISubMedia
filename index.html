@@ -215,6 +215,17 @@
                     </div>
                 </div>
 
+                <div class="section-box">
+                    <span class="section-title">🔐 کلید بک‌اند (BACKEND_API_KEY)</span>
+                    <p class="hint-text">
+                        این کلید، کلید پروایدر (Groq و...) نیست؛ رمزی است که فقط شما می‌دانید و سرور ورسل با آن درخواست‌های ترجمه را از غریبه‌ها تشخیص می‌دهد. باید دقیقاً همان مقداری باشد که در Vercel با نام BACKEND_API_KEY ست کرده‌اید. اگر در Vercel ست نشده باشد، این فیلد لازم نیست.
+                    </p>
+                    <div class="row-group">
+                        <input type="password" id="backendKeyInput" placeholder="کلید بک‌اند" class="grow">
+                        <button type="button" class="btn-primary btn-auto" id="saveBackendKeyBtn">ثبت 🔐</button>
+                    </div>
+                </div>
+
                 <div class="section-box section-box--wide">
                     <span class="section-title">✏️ ویرایش / حذف پروایدر و مدل</span>
                     <div class="field field--last">

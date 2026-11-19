@@ -2,11 +2,11 @@
   "rewrites": [
     { "source": "/translate-google", "destination": "/api/index" },
     { "source": "/translate-ai", "destination": "/api/index" },
-    { "source": "/transcribe-aac", "destination": "/api/index" }
+    { "source": "/fetch-link", "destination": "/api/index" }
   ],
   "functions": {
     "api/index.py": {
-      "maxDuration": 120
+      "maxDuration": 60
     }
   }
 }
